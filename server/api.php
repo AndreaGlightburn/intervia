@@ -104,7 +104,7 @@ function vt($path, $ttl) {
 $a = $_GET['a'] ?? '';
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.2']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.3']);
 if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
     $res = [];
     foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
@@ -215,7 +215,7 @@ function overpass_q($ql) {
     $errs = [];
     foreach (['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'] as $srv) {
         $LAST_ERR = '';
-        $r = fetch_url($srv . '?data=' . rawurlencode($ql), 86400, 55);
+        $r = fetch_url($srv . '?data=' . rawurlencode($ql), 86400, strpos($ql, 'area') !== false ? 130 : 55);
         if ($r !== false) { $j = json_decode($r, true); if (is_array($j) && isset($j['elements'])) return $j; }
         $errs[] = parse_url($srv, PHP_URL_HOST) . ': ' . ($LAST_ERR ?: 'risposta non valida');
     }
@@ -244,6 +244,19 @@ if ($a === 'line') {
     $id = preg_replace('/\D/', '', $_GET['id'] ?? '');
     if ($id === '') fail('Parametri non validi', 400);
     $j = overpass_q('[out:json][timeout:50];relation(' . $id . ')->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;');
+    if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
+    out(['ok' => true, 'elements' => $j['elements']]);
+}
+
+if ($a === 'citylines') {
+    @set_time_limit(150);
+    $area = preg_replace('/\D/', '', $_GET['area'] ?? '');
+    $name = trim($_GET['name'] ?? '');
+    if ($area !== '') $sel = 'area(' . $area . ')->.a;';
+    elseif ($name !== '' && preg_match('/^[\p{L} \'\-.]{2,40}$/u', $name))
+        $sel = 'area["name"="' . str_replace('"', '', $name) . '"]["boundary"="administrative"]["admin_level"~"^(7|8)$"]->.a;';
+    else fail('Parametri non validi', 400);
+    $j = overpass_q('[out:json][timeout:120];' . $sel . 'relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;');
     if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
     out(['ok' => true, 'elements' => $j['elements']]);
 }

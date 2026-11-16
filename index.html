@@ -251,6 +251,14 @@ footer a{color:var(--mute)}
       <div id="favlines" class="mt"></div>
       <div class="sub" style="font-size:12px;color:var(--mute);margin-top:6px">Aggiungi la città per cercare altrove (es. "M1 Roma"); altrimenti cerco vicino alla tua ultima posizione.</div>
     </form>
+    <div class="card">
+      <label for="cityq">Tutte le linee di una città</label>
+      <div class="row">
+        <input type="text" id="cityq" placeholder="es. Abbiategrasso, Udine, Aquileia, Milano">
+        <button class="go" type="button" id="citygo" style="flex:0 0 auto;width:auto;margin:0;padding:10px 16px">Elenca</button>
+      </div>
+      <div id="favcities" class="recent"></div>
+    </div>
     <div id="lout"></div>
   </div>
 </main>
@@ -1441,6 +1449,93 @@ function renderAlerts(){
       ${x.note ? `<div class="txt" style="margin-top:4px">🕒 ${esc(x.note)}</div>` : ''}
       <div class="meta">${x.region || x.prov ? `<span>📍 ${esc([x.prov, x.region].filter(Boolean).join(', '))}</span>` : '<span>📍 Italia</span>'}${x.unions ? `<span>👥 ${esc(x.unions)}</span>` : ''}</div></div>`;
   }).join('');
+}
+
+/* ---------- Tutte le linee di una città ---------- */
+const CITY_GROUPS = [
+  ['subway', '🚇 Metropolitana', ['subway','monorail']],
+  ['tram', '🚊 Tram', ['tram','light_rail']],
+  ['bus', '🚌 Bus e filobus', ['bus','trolleybus','share_taxi']],
+  ['train', '🚆 Treni', ['train']],
+  ['coach', '🚍 Autolinee e pullman', ['coach']],
+  ['ferry', '⛴️ Traghetti e battelli', ['ferry']],
+];
+const natCmp = (a, b) => String(a).localeCompare(String(b), 'it', {numeric:true, sensitivity:'base'});
+let cityLines = null;
+$('#citygo').onclick = () => runCityLines($('#cityq').value.trim());
+$('#cityq').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); runCityLines($('#cityq').value.trim()); } });
+function renderCityFavs(){
+  const list = (store('intervia.cities') || []);
+  $('#favcities').innerHTML = list.map(c => `<button type="button" data-c="${esc(c)}">🏙️ ${esc(c)}</button>`).join('');
+  $('#favcities').querySelectorAll('button').forEach(b => b.onclick = () => { $('#cityq').value = b.dataset.c; runCityLines(b.dataset.c); });
+}
+renderCityFavs();
+async function runCityLines(city){
+  if (!city) return;
+  const out = $('#lout'), btn = $('#citygo'); btn.disabled = true;
+  out.innerHTML = `<div class="msg">Cerco tutte le linee di ${esc(city)}… per una grande città la prima volta può richiedere fino a due minuti, poi è immediata.</div>`;
+  try{
+    // individua il comune (confine amministrativo) con Photon
+    let areaId = null, center = null, label = city;
+    try{
+      const r = await withTimeout(fetch(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`), 8000);
+      const f = ((await r.json()).features || []).find(x => x.properties?.osm_type === 'R');
+      if (f){ areaId = 3600000000 + f.properties.osm_id; center = {lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0]}; label = f.properties.name || city; }
+    }catch(e){}
+    let els;
+    try{ els = (await withTimeout(bridgeGet(areaId ? {a:'citylines', area: areaId} : {a:'citylines', name: city}), 150000)).elements; }
+    catch(e){
+      const sel = areaId ? `area(${areaId})->.a;` : `area["name"="${city.replace(/"/g, '')}"]["boundary"="administrative"]["admin_level"~"^(7|8)$"]->.a;`;
+      els = (await overpass(`[out:json][timeout:60];${sel}relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;`)).elements;
+    }
+    els = (els || []).filter(x => x.tags);
+    if (!els.length){ out.innerHTML = `<div class="msg">Nessuna linea trovata a ${esc(label)} nei dati OpenStreetMap. Controlla il nome del comune (es. "Aquileia").</div>`; return; }
+    let cl = (store('intervia.cities') || []).filter(x => x.toLowerCase() !== label.toLowerCase()); cl.unshift(label); store('intervia.cities', cl.slice(0, 8)); renderCityFavs();
+    // raggruppa: tipo di mezzo → nome linea → percorsi (direzioni)
+    cityLines = {label, center, groups: []};
+    for (const [key, title, routes] of CITY_GROUPS){
+      const byRef = new Map();
+      els.filter(x => routes.includes(x.tags.route)).forEach(x => {
+        const ref = x.tags.ref || x.tags.name || '?';
+        if (!byRef.has(ref)) byRef.set(ref, []);
+        byRef.get(ref).push(x);
+      });
+      if (byRef.size) cityLines.groups.push({key, title, lines: [...byRef.entries()].sort((a,b) => natCmp(a[0], b[0]))});
+    }
+    const tot = cityLines.groups.reduce((n, g) => n + g.lines.length, 0);
+    out.innerHTML = `<div class="msg" style="margin-bottom:6px"><b>${esc(label)}</b>: ${tot} linee che passano nel comune. Tocca una linea per vedere percorsi e fermate.</div>` +
+      cityLines.groups.map((g, gi) => `<div class="sec">${g.title} · ${g.lines.length}</div><div class="card"><div class="chips">${g.lines.map(([ref, rels], li) => {
+        const t = rels[0].tags, col = t.colour && /^#?[0-9a-f]{3,6}$/i.test(t.colour) ? (t.colour[0] === '#' ? t.colour : '#' + t.colour) : null;
+        return `<span class="chip" data-g="${gi}" data-l="${li}" ${col ? `style="border-color:${esc(col)};box-shadow:inset 4px 0 0 ${esc(col)}"` : ''} title="${esc(t.name || '')}">${esc(ref.length > 22 ? ref.slice(0, 20) + '…' : ref)}</span>`;
+      }).join('')}</div></div>`).join('') + '<div id="cityline"></div>';
+    out.querySelectorAll('.chip[data-g]').forEach(ch => ch.onclick = () => {
+      out.querySelectorAll('.chip[data-g]').forEach(x => x.classList.toggle('on', x === ch));
+      showCityLine(cityLines.groups[+ch.dataset.g].lines[+ch.dataset.l]);
+    });
+  }catch(err){ out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+  finally{ btn.disabled = false; }
+}
+function showCityLine([ref, rels]){
+  const box = $('#cityline'), city = cityLines.label;
+  const favKey = 'line:' + (ref + ' ' + city).toLowerCase();
+  box.innerHTML = `<div class="msg" style="margin:12px 0">Linea <b>${esc(ref)}</b> · ${rels.length} ${rels.length === 1 ? 'percorso' : 'percorsi'}
+      <button type="button" class="favbtn" data-fav="${esc(favKey)}" data-favtype="line" data-favlabel="${esc(ref + ' ' + city)}" style="float:right">${isFav(favKey) ? '★ Preferita' : '☆ Salva'}</button></div>` +
+    rels.map(r => {
+      const t = r.tags || {}, ic = ROUTE_ICON[t.route] || '🚏';
+      const col = t.colour && /^#?[0-9a-f]{3,6}$/i.test(t.colour) ? (t.colour[0] === '#' ? t.colour : '#' + t.colour) : null;
+      const title = t.from && t.to ? `${t.from} → ${t.to}` : (t.name || '');
+      return `<div class="card it line" data-id="${r.id}" data-ref="${esc(t.ref || ref)}" data-route="${esc(t.route || '')}" data-op="${esc(t.operator || t.network || '')}">
+        <div class="top"><div><span class="badge" ${col ? `style="background:${esc(col)};color:#fff"` : ''}>${ic} ${esc(t.ref || ref)}</span> <b>${esc(title)}</b></div></div>
+        <div class="sub" style="font-size:13px;color:var(--mute);margin-top:4px">${esc([t.operator, t.network].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · '))}<span style="float:right">Fermate ▾</span></div>
+        <div class="det"></div></div>`;
+    }).join('');
+  box.querySelectorAll('.line').forEach(cd => cd.addEventListener('click', ev => {
+    if (ev.target.closest('a, button, .rmap, .dep')) return;
+    cd.classList.toggle('open');
+    if (cd.classList.contains('open')) loadLine(cd);
+  }));
+  bindFavButtons(box);
+  box.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 renderFavs();
