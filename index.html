@@ -310,7 +310,7 @@ footer a{color:var(--mute)}
 
 <script>
 'use strict';
-const APP_VERSION = '2.2.1', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
+const APP_VERSION = '2.2.2', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -1295,18 +1295,33 @@ async function stopsInBox(b, signal){
   return [];
 }
 // sceglie fermate distribuite su tutta l'area (griglia), non solo quelle del centro
-function spreadStops(stops, b, cells = 7, cap = 36){
+function spreadOrder(stops, b, cells = 10){
+  // ordina le fermate "a giro" sulle celle di una griglia: le prime N coprono tutta l'area
   const seen = new Map();
   for (const st of stops){
-    const gx = Math.min(cells - 1, Math.floor((st.lon - b.minLon) / (b.maxLon - b.minLon || 1) * cells));
-    const gy = Math.min(cells - 1, Math.floor((st.lat - b.minLat) / (b.maxLat - b.minLat || 1) * cells));
+    const gx = Math.min(cells - 1, Math.max(0, Math.floor((st.lon - b.minLon) / (b.maxLon - b.minLon || 1) * cells)));
+    const gy = Math.min(cells - 1, Math.max(0, Math.floor((st.lat - b.minLat) / (b.maxLat - b.minLat || 1) * cells)));
     const k = gx + ',' + gy;
     if (!seen.has(k)) seen.set(k, []);
-    if (seen.get(k).length < 2) seen.get(k).push(st);
+    seen.get(k).push(st);
   }
-  const out = []; let round = 0;
-  while (out.length < cap && round < 2){ for (const arr of seen.values()) if (arr[round] && out.length < cap) out.push(arr[round]); round++; }
+  const lists = [...seen.values()], out = [];
+  for (let round = 0; out.length < stops.length; round++){
+    let any = false;
+    for (const arr of lists) if (arr[round]){ out.push(arr[round]); any = true; }
+    if (!any) break;
+  }
   return out;
+}
+function spreadStops(stops, b, cells = 7, cap = 36){ return spreadOrder(stops, b, cells).slice(0, cap); }
+function mergeRoutes(a, b){
+  const m = new Map();
+  for (const r of [...a, ...b]){
+    const k = r.name + '|' + r.group + '|' + r.agency;
+    if (!m.has(k)) m.set(k, {...r, dirs: [...r.dirs]});
+    else { const t = m.get(k), have = new Set(t.dirs.map(d => d[0])); r.dirs.forEach(d => { if (!have.has(d[0])) t.dirs.push(d); }); }
+  }
+  return [...m.values()];
 }
 const lineNameOf = x => (x.routeShortName || String(x.displayName || '').replace(/\s+\d{3,6}$/, '') || '').trim();
 async function routesFromStops(stops, {signal, onProgress, n = 50} = {}){
@@ -1333,7 +1348,7 @@ async function routesFromStops(stops, {signal, onProgress, n = 50} = {}){
       onProgress?.(++done, stops.length);
     }
   };
-  await Promise.all(Array.from({length: 6}, worker));
+  await Promise.all(Array.from({length: 8}, worker));
   return [...routes.values()].filter(r => Object.keys(r.dirs).length);
 }
 // Fermate di una corsa (con orari) per mostrare un percorso
@@ -1857,7 +1872,8 @@ async function fetchCityLines(city, force){
     const r = await fetchT(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`, {}, 8000);
     const f = ((await r.json()).features || []).find(x => x.properties?.osm_type === 'R');
     if (f){
-      areaId = 3600000000 + f.properties.osm_id; label = f.properties.name || city;
+      areaId = 3600000000 + f.properties.osm_id;
+      label = city.trim().replace(/\s+/g, ' ').replace(/(^|[\s'-])(\p{L})/gu, (m, p, c) => p + c.toUpperCase());   // il nome come lo scrive l'utente
       const [lon, lat] = f.geometry.coordinates, ex = f.properties.extent;   // [ovest, nord, est, sud]
       box = ex ? {minLon: ex[0], maxLat: ex[1], maxLon: ex[2], minLat: ex[3]} : {minLat: lat - .03, maxLat: lat + .03, minLon: lon - .04, maxLon: lon + .04};
       // limita le città molto estese (es. Roma) a un riquadro ragionevole attorno al centro
@@ -1866,11 +1882,15 @@ async function fetchCityLines(city, force){
     }
   }catch(e){}
   if (box){
-    const prog = $('#cityprog');
-    const stops = spreadStops(await stopsInBox(box, cityCtrl?.signal), box);
-    if (prog) prog.textContent = `Leggo gli orari di ${stops.length} fermate…`;
-    const routes = await routesFromStops(stops, {signal: cityCtrl?.signal, onProgress: (d, t) => { const el = $('#cityprog'); if (el) el.textContent = `Leggo gli orari: ${d}/${t} fermate`; }});
-    if (routes.length) return {label, src: 'tt', routes: routes.map(r => ({...r, dirs: Object.entries(r.dirs)}))};
+    const all = await stopsInBox(box, cityCtrl?.signal);
+    const ordered = spreadOrder(all, box, 12);
+    const first = Math.min(ordered.length, Math.max(30, Math.min(80, Math.round(ordered.length / 25))));
+    const stops = ordered.slice(0, first);
+    const routes = await routesFromStops(stops, {signal: cityCtrl?.signal, onProgress: (d, t) => { const el = $('#cityprog'); if (el) el.textContent = `Leggo gli orari: ${d}/${t} fermate (su ${all.length} del comune)`; }});
+    const prev = lcGet('city:' + city.toLowerCase().trim())?.v;
+    const fresh = routes.map(r => ({...r, dirs: Object.entries(r.dirs)}));
+    const merged = prev?.src === 'tt' ? mergeRoutes(prev.routes, fresh) : fresh;     // non si perdono le linee già trovate
+    if (merged.length) return {label, src: 'tt', routes: merged, pending: ordered.slice(first, first + 1200).map(x => [x.id, x.name]), read: first, total: all.length};
     ttDiag = stops.length ? `orari: ${stops.length} fermate lette, nessuna corsa a breve` : `orari: ${lastStopsDiag}`;
     const el = $('#cityprog'); if (el) el.textContent = 'Dagli orari non risultano linee: provo OpenStreetMap…';
   } else ttDiag = 'comune non trovato (Photon)';
@@ -1939,13 +1959,28 @@ function renderCityTT(res, city){
   const groups = TT_GROUPS.map(([g, title]) => ({title, lines: routes.filter(r => r.group === g).sort((a,b) => natCmp(a.name, b.name) || natCmp(a.agency, b.agency))})).filter(g => g.lines.length);
   cityLines = {label, tt: groups};
   out.innerHTML = `<div class="msg" style="margin-bottom:6px"><b>${esc(label)}</b>: ${routes.length} linee con corse nelle prossime ore, ricavate dagli orari. Tocca una linea per direzioni e fermate.
-      <br><small style="color:var(--mute)">Le linee senza corse in questo momento (es. di notte o nei festivi) possono non comparire. 📦 Salvato il ${fmtDay(res.t)} · <a href="#" id="cityref">↻ Aggiorna ora</a></small></div>` +
+      <br><small style="color:var(--mute)">Lette ${res.v.read || '?'} fermate su ${res.v.total || '?'}. Le linee senza corse in questo momento (es. di notte o nei festivi) possono non comparire. 📦 Salvato il ${fmtDay(res.t)} · <a href="#" id="cityref">↻ Aggiorna ora</a></small>
+      ${res.v.pending?.length ? `<div class="mt"><button type="button" class="go" id="citymore" style="margin:0;padding:9px">🔍 Cerca altre linee (leggi altre ${Math.min(60, res.v.pending.length)} fermate)</button></div>` : ''}
+      <div id="citymoremsg" class="sub" role="status" style="font-size:13px;margin-top:4px"></div></div>` +
     groups.map((g, gi) => `<div class="sec">${g.title} · ${g.lines.length}</div><div class="card"><div class="chips">${g.lines.map((r, li) =>
       `<span class="chip" data-g="${gi}" data-l="${li}" ${r.color ? `style="border-color:#${esc(r.color)};box-shadow:inset 4px 0 0 #${esc(r.color)}"` : ''} title="${esc(r.agency)}">${esc(r.name.length > 22 ? r.name.slice(0, 20) + '…' : r.name)}</span>`).join('')}</div></div>`).join('') + '<div id="cityline"></div>';
   $('#cityref').onclick = e => { e.preventDefault(); runCityLines(city, true); };
   out.querySelectorAll('.chip[data-g]').forEach(ch => ch.onclick = () => {
     out.querySelectorAll('.chip[data-g]').forEach(x => x.classList.toggle('on', x === ch));
     showCityLineTT(groups[+ch.dataset.g].lines[+ch.dataset.l]);
+  });
+  $('#citymore')?.addEventListener('click', async () => {
+    const btn = $('#citymore'), msg = $('#citymoremsg'); btn.disabled = true;
+    const batch = res.v.pending.slice(0, 60).map(([id, name]) => ({id, name}));
+    try{
+      const found = (await routesFromStops(batch, {onProgress: (d, t) => { msg.textContent = `Leggo gli orari: ${d}/${t} fermate…`; }})).map(r => ({...r, dirs: Object.entries(r.dirs)}));
+      const before = res.v.routes.length;
+      const v = {...res.v, routes: mergeRoutes(res.v.routes, found), pending: res.v.pending.slice(60), read: (res.v.read || 0) + batch.length};
+      lcSet('city:' + city.toLowerCase().trim(), v);
+      renderCityTT({v, t: Date.now(), cached: false}, city);
+      const add = v.routes.length - before;
+      const m2 = $('#citymoremsg'); if (m2) m2.textContent = add ? `✅ Trovate ${add} linee nuove.` : 'Nessuna linea nuova in queste fermate.';
+    }catch(e){ msg.textContent = 'Lettura non riuscita: ' + e.message; btn.disabled = false; }
   });
 }
 function showCityLineTT(r){

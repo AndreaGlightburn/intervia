@@ -216,5 +216,22 @@ await test('linee di una città dagli orari (senza OpenStreetMap): linee, direzi
   assert.ok(await until(() => /Piazza Libertà/.test(dirs[0].textContent)), dirs[0].textContent);
 });
 
+await test('"Cerca altre linee": legge altre fermate e aggiunge le linee nuove senza perdere le vecchie', async () => {
+  const stops = Array.from({ length: 40 }, (_, i) => ({ stopId: 's' + i, name: 'F' + i, lat: 45.4 + (i % 7) * 0.01, lon: 9.1 + Math.floor(i / 7) * 0.01 }));
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('photon')) return json(w, { features: [{ geometry: { coordinates: [9.13, 45.43] }, properties: { osm_type: 'R', osm_id: 44915, name: 'Milan', extent: [9.09, 45.47, 9.17, 45.39] } }] });
+    if (u.includes('/map/stops')) return json(w, stops);
+    if (u.includes('/stoptimes')) { const id = new URL(u).searchParams.get('stopId'); return json(w, { stopTimes: [{ mode: 'BUS', routeShortName: 'L' + id.slice(1), headsign: 'X', tripId: 't' + id, agencyName: 'ATM' }] }); }
+    return json(w, []);
+  });
+  w.eval("runCityLines('milano')");
+  assert.ok(await until(() => /30 linee/.test(d.getElementById('lout').textContent), 6000), d.getElementById('lout').textContent);
+  assert.match(d.getElementById('lout').textContent, /^Milano:/, 'nome del comune come scritto (in italiano)');
+  d.getElementById('citymore').click();
+  assert.ok(await until(() => /40 linee/.test(d.getElementById('lout').textContent), 6000), d.getElementById('lout').textContent);
+  assert.match(d.getElementById('lout').textContent, /Trovate 10 linee nuove/);
+  assert.ok(!d.getElementById('citymore'), 'nessun pulsante quando non restano fermate');
+});
+
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);
