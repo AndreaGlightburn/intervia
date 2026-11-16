@@ -148,11 +148,11 @@ function vt($path, $ttl) {
 $a = $_GET['a'] ?? '';
 if (!in_array($a, ['ping', 'diag', 'train', 'info', 'strikes', 'lines', 'line', 'citylines'], true)) fail('Azione non valida', 400);
 rate_limit('all', 90);
-if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heavy', $a === 'citylines' || $a === 'diag' ? 6 : 30);
+if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heavy', $a === 'citylines' || $a === 'diag' ? 12 : 40);
 housekeeping();
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.1']);
 if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
     $res = [];
     foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
@@ -261,7 +261,12 @@ if ($a === 'strikes') {
 // Dati OpenStreetMap: conservati senza scadenza; rinnovati in sottofondo dopo 7 giorni
 const OSM_FRESH = 7 * 86400;
 function osm_cache_file($ql) {
-    return data_dir('osm') . '/' . sha1($ql) . '.json';
+    $f = data_dir('osm') . '/' . sha1($ql) . '.json';
+    if (!is_file($f)) {                                   // recupera i dati salvati dalle versioni 1.4–1.5
+        foreach ([__DIR__ . '/cache/' . sha1($ql) . '.json', sys_get_temp_dir() . '/intervia_osm/' . sha1($ql) . '.json'] as $old)
+            if (is_file($old)) { @rename($old, $f) || @copy($old, $f); break; }
+    }
+    return $f;
 }
 function overpass_fetch($ql) {
     global $LAST_ERR;
