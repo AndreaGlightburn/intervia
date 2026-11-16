@@ -189,6 +189,7 @@ footer a{color:var(--mute)}
         <span class="chip on" data-g="bus">🚌 Bus</span>
         <span class="chip on" data-g="pullman">🚍 Pullman</span>
         <span class="chip on" data-g="traghetto">⛴️ Traghetti</span>
+        <span class="chip on" data-g="altro">🚡 Altri (funicolari, funivie…)</span>
       </div>
     </div>
 
@@ -293,7 +294,7 @@ function modeGroup(m, ver){
   if (m === 'COACH') return 'pullman';
   if (m === 'FERRY') return 'traghetto';
   if (m === 'WALK' || m === 'BIKE' || m === 'CAR' || m === 'RENTAL' || m === 'FLEX') return 'piedi';
-  return 'altro';
+  return 'altro';   // funicolari, funivie e mezzi non classificati: ammessi solo se "Altri" è selezionato
 }
 const ICON = {treno:'🚆',metro:'🚇',tram:'🚊',bus:'🚌',pullman:'🚍',traghetto:'⛴️',piedi:'🚶',altro:'🚡'};
 const NAME = {treno:'Treno',metro:'Metro',tram:'Tram',bus:'Bus',pullman:'Pullman',traghetto:'Traghetto',piedi:'A piedi',altro:'Mezzo'};
@@ -305,7 +306,7 @@ function apiModes(groups, ver){
   if (groups.includes('bus'))   m.push('BUS');
   if (groups.includes('pullman')) m.push('COACH');
   if (groups.includes('traghetto')) m.push('FERRY');
-  m.push('FUNICULAR','AERIAL_LIFT');
+  if (groups.includes('altro')) m.push('FUNICULAR','AERIAL_LIFT');
   return [...new Set(m)];
 }
 
@@ -331,11 +332,12 @@ const TICKETS = [
   [/sbb|cff|ffs/i, 'FFS/SBB', 'https://www.sbb.ch/it'],
   [/tilo/i, 'TILO', 'https://www.tilo.ch/'],
 ];
+// Nessun operatore offre link di acquisto precompilati verificati: si apre solo il sito, e lo si dice.
 function ticketLinks(leg){
   const agency = leg.agencyName || '';
-  for (const [re, label, url] of TICKETS) if (re.test(agency)) return [{label:'Biglietto ' + label, url, main:true}];
-  if (leg.agencyUrl) return [{label:'Biglietto ' + (agency || 'operatore'), url:leg.agencyUrl, main:true}];
-  if (agency) return [{label:'Cerca biglietto ' + agency, url:'https://www.google.com/search?q=' + encodeURIComponent('biglietto ' + agency), main:false}];
+  for (const [re, label, url] of TICKETS) if (re.test(agency)) return [{label:'🌐 Sito ' + label + ' (biglietti)', url, main:true}];
+  if (leg.agencyUrl) return [{label:'🌐 Sito dell\'operatore' + (agency ? ' · ' + agency : ''), url:leg.agencyUrl, main:true}];
+  if (agency) return [{label:'🔎 Cerca il sito di ' + agency, url:'https://www.google.com/search?q=' + encodeURIComponent(agency + ' biglietti'), main:false}];
   return [];
 }
 
@@ -364,8 +366,23 @@ function liveLinks(l, g){
 }
 
 /* ---------- Utilità ---------- */
-const fmtT = iso => iso ? new Date(iso).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}) : '–';
-const fmtD = iso => new Date(iso).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+const TZ = 'Europe/Rome';
+const fmtT = iso => iso ? new Date(iso).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:TZ}) : '–';
+const fmtD = iso => new Date(iso).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short',timeZone:TZ});
+const romeDay = iso => new Date(iso).toLocaleDateString('en-CA',{timeZone:TZ});   // AAAA-MM-GG nel fuso italiano
+// Scarto (minuti) fra l'ora di Roma e UTC in un dato istante: gestisce ora legale/solare
+function tzOffsetMin(date){
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:TZ,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    .formatToParts(date).map(x => [x.type, x.value]));
+  return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - date.getTime()) / 60000);
+}
+// "2026-11-16" + "07:30" intesi come ora italiana → ISO UTC, qualunque sia il fuso del telefono
+function romeISO(d, t){
+  const [Y, M, D] = d.split('-').map(Number), [h, mi] = t.split(':').map(Number);
+  let ts = Date.UTC(Y, M - 1, D, h, mi);
+  for (let i = 0; i < 2; i++) ts = Date.UTC(Y, M - 1, D, h, mi) - tzOffsetMin(new Date(ts)) * 60000;
+  return new Date(ts).toISOString();
+}
 function fmtDur(sec){ const m = Math.round(sec/60); if (m < 60) return m + ' min'; return Math.floor(m/60) + ' h ' + String(m%60).padStart(2,'0'); }
 function delayMin(real, sched){ if (!real || !sched) return 0; return Math.round((new Date(real) - new Date(sched))/60000); }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -404,8 +421,8 @@ async function geocode(q, signal, bias){
   let pUrl = `${PHOTON}?q=${enc}&limit=12&bbox=6.6,35.4,18.6,47.1`;
   if (bias && bias.lat != null) pUrl += `&lat=${bias.lat}&lon=${bias.lon}`;
   const [t, p] = await Promise.allSettled([
-    fetch(`${API}/api/v1/geocode?text=${enc}&language=it`, {signal}).then(r => r.ok ? r.json() : []),
-    fetch(pUrl, {signal}).then(r => r.ok ? r.json() : {features: []})
+    fetchT(`${API}/api/v1/geocode?text=${enc}&language=it`, {signal}, 10000).then(r => r.ok ? r.json() : []),
+    fetchT(pUrl, {signal}, 10000).then(r => r.ok ? r.json() : {features: []})
   ]);
   if (signal.aborted) throw new DOMException('abort', 'AbortError');
   if (t.status === 'rejected' && p.status === 'rejected') throw new Error('offline');
@@ -508,7 +525,7 @@ async function choosePoint(lat, lon){
   pickVal = {label:`Punto sulla mappa (${lat.toFixed(5)}, ${lon.toFixed(5)})`, place:`${lat.toFixed(6)},${lon.toFixed(6)}`, lat, lon};
   $('#pickLabel').textContent = 'Cerco l\'indirizzo…'; $('#pickOk').disabled = false;
   try{
-    const r = await fetch(`${PHOTON}reverse?lat=${lat}&lon=${lon}&limit=1`);
+    const r = await fetchT(`${PHOTON}reverse?lat=${lat}&lon=${lon}&limit=1`, {}, 10000);
     const f = (await r.json()).features?.[0];
     if (f && pickVal && pickVal.lat === lat){
       const it = photonItem(f);
@@ -555,7 +572,9 @@ function drawRoute(el, it, ver){
     if (pts.length < 2 && l.from && l.to) pts = [[l.from.lat, l.from.lon], [l.to.lat, l.to.lon]];
     if (pts.length < 2) return;
     all.push(...pts);
-    if (g === 'piedi'){
+    if (l._missing){
+      L.polyline(pts, {color:'#C0262D', weight:3, dashArray:'2 8', opacity:.9}).addTo(m).bindPopup('⚠️ Tratto a piedi non calcolato: la linea è solo indicativa, non un percorso.');
+    } else if (g === 'piedi'){
       L.polyline(pts, {color:'#64748B', weight:4, dashArray:'4 8', opacity:.9}).addTo(m);
     } else {
       const col = l.routeColor ? '#' + l.routeColor : GROUP_COLOR[g] || '#2563EB';
@@ -590,9 +609,9 @@ $('#modes').addEventListener('click', e => {
   if (!$('#modes .chip.on')) c.classList.add('on');   // almeno un mezzo
 });
 (function initDate(){
-  const n = new Date(), p = x => String(x).padStart(2,'0');
-  $('#date').value = `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
-  $('#time').value = `${p(n.getHours())}:${p(n.getMinutes())}`;
+  const n = new Date();
+  $('#date').value = romeDay(n);
+  $('#time').value = n.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:TZ});
   const saved = store('intervia.prefs');
   if (saved){
     $('#maxT').value = saved.maxT ?? '';
@@ -617,123 +636,246 @@ function saveRecent(){
 }
 renderRecent();
 
+/* ---------- Richieste: timeout reale (AbortController) ed errori distinti ---------- */
+const ERR_MSG = {
+  timeout: 'Il servizio non ha risposto in tempo. Riprova tra poco.',
+  network: 'Connessione non riuscita: controlla la rete.',
+  busy: 'Il servizio è occupato (troppe richieste). Riprova tra qualche secondo.',
+  unavailable: 'Il servizio è temporaneamente non disponibile.',
+  bad: 'Il servizio non ha accettato la richiesta.',
+};
+class NetError extends Error{ constructor(kind, msg, status){ super(msg || ERR_MSG[kind]); this.kind = kind; this.status = status; } }
+async function fetchT(url, opts = {}, ms = 20000){
+  const ctrl = new AbortController(), ext = opts.signal;
+  let timedOut = false;
+  if (ext){ if (ext.aborted) ctrl.abort(); else ext.addEventListener('abort', () => ctrl.abort(), {once:true}); }
+  const tm = setTimeout(() => { timedOut = true; ctrl.abort(); }, ms);
+  try{ return await fetch(url, {...opts, signal: ctrl.signal}); }
+  catch(e){
+    if (timedOut) throw new NetError('timeout');
+    if (e.name === 'AbortError') throw e;          // annullata perché superata da una nuova ricerca
+    throw new NetError('network');
+  }
+  finally{ clearTimeout(tm); }
+}
+const httpKind = st => st === 429 ? 'busy' : st >= 500 ? 'unavailable' : 'bad';
+
 /* ---------- Chiamata API ---------- */
 let last = null;   // ultima query, per paginazione
-async function callPlan(q, cursor){
+// Parametri facoltativi: se il servizio ne rifiuta uno (400) si toglie quello, MAI il filtro dei mezzi.
+const OPTIONAL_PARAMS = ['withFares', 'language', 'detailedTransfers', 'maxPreTransitTime', 'maxPostTransitTime'];
+async function callPlan(q, cursor, signal){
   const vers = planVer ? [planVer] : PLAN_VERSIONS;
   let lastErr;
   for (const ver of vers){
     const p = new URLSearchParams({
       fromPlace:q.from, toPlace:q.to, time:q.time, arriveBy:String(q.arriveBy),
       transitModes: apiModes(q.groups, ver).join(','), directModes:'WALK',
-      numItineraries:'8', detailedTransfers:'false', language:'it', withFares:'true'
+      numItineraries:'8', detailedTransfers:'false', language:'it', withFares:'true',
+      maxPreTransitTime:'1800', maxPostTransitTime:'1800'   // fino a 30 min a piedi da/verso le fermate
     });
     if (q.maxT !== '') p.set('maxTransfers', q.maxT);
     if (cursor) p.set('pageCursor', cursor);
-    let r;
-    try{ r = await fetch(`${API}/api/${ver}/plan?${p}`); }
-    catch(e){ lastErr = new Error('Connessione non riuscita. Controlla la rete.'); continue; }
-    if (r.status === 404){ lastErr = new Error('Servizio non trovato'); continue; }
-    if (r.status === 400 && !planVer){
-      // parametro non supportato da questa versione: riprova più semplice
-      p.delete('withFares'); p.set('transitModes','TRANSIT');
-      const r2 = await fetch(`${API}/api/${ver}/plan?${p}`).catch(() => null);
-      if (r2 && r2.ok){ planVer = ver; return {ver, data: await r2.json(), relaxed:true}; }
-      lastErr = new Error('Richiesta non accettata dal servizio (' + r.status + ')'); continue;
+    const dropped = [];
+    for (let attempt = 0; attempt <= OPTIONAL_PARAMS.length; attempt++){
+      const r = await fetchT(`${API}/api/${ver}/plan?${p}`, {signal}, 25000);
+      if (r.ok){ planVer = ver; return {ver, data: await r.json(), dropped}; }
+      if (r.status === 404){ lastErr = new NetError('unavailable', 'Servizio di calcolo non trovato'); break; }
+      if (r.status !== 400) throw new NetError(httpKind(r.status), null, r.status);
+      const next = OPTIONAL_PARAMS.find(k => p.has(k));
+      if (!next){ lastErr = new NetError('bad', 'Il servizio non accetta questa combinazione di mezzi o parametri.', 400); break; }
+      p.delete(next); dropped.push(next);
     }
-    if (r.status === 429) throw new Error('Troppe richieste ravvicinate: riprova tra qualche secondo.');
-    if (!r.ok){ lastErr = new Error('Errore dal servizio (' + r.status + ')'); continue; }
-    planVer = ver;
-    return {ver, data: await r.json()};
   }
-  throw lastErr || new Error('Servizio non raggiungibile');
+  throw lastErr || new NetError('unavailable');
 }
-
 $('#f').addEventListener('submit', async e => {
   e.preventDefault();
   if (!sel.from) return showMsg('Scegli il punto di partenza dall\'elenco dei suggerimenti.', true);
   if (!sel.to)   return showMsg('Scegli la destinazione dall\'elenco dei suggerimenti.', true);
   if (!$('#date').value || !$('#time').value) return showMsg('Indica data e ora.', true);
-  const time = new Date(`${$('#date').value}T${$('#time').value}`).toISOString();
+  const time = romeISO($('#date').value, $('#time').value);
   last = {from:sel.from.place, to:sel.to.place, time, arriveBy, maxT:$('#maxT').value, groups:groupsSel()};
   store('intervia.prefs', {maxT:last.maxT, groups:last.groups});
   saveRecent();
   await run(null, 'new');
 });
 
+let searchSeq = 0, searchCtrl = null;
 async function run(cursor, how){
+  const seq = ++searchSeq;
+  searchCtrl?.abort(); searchCtrl = new AbortController();
+  const signal = searchCtrl.signal, stale = () => seq !== searchSeq;
   const btn = $('#go'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Cerco…';
-  if (how === 'new') $('#out').innerHTML = '<div class="msg">Calcolo le soluzioni…</div>';
+  if (how === 'new') $('#out').innerHTML = '<div class="msg" role="status">Calcolo le soluzioni…</div>';
   try{
-    let {ver, data} = await callPlan(last, cursor);
-    let diag = {raw:(data.itineraries || []).length, direct:(data.direct || []).length, from:last.from, to:last.to, ver};
-    // Nessun risultato partendo/arrivando da coordinate: riprova dalla fermata più vicina
-    if (how === 'new' && !filterIt(data.itineraries || [], ver).length && !last.snapNote){
-      const q2 = await snapToStops(last);
+    const q = last;
+    let {ver, data} = await callPlan(q, cursor, signal);
+    if (stale()) return;
+    let diag = {raw:(data.itineraries || []).length, direct:(data.direct || []).length, ver};
+    // Nessun risultato da/verso un indirizzo: si riparte dalla fermata più vicina AGGIUNGENDO il tratto a piedi
+    if (how === 'new' && !filterIt(data.itineraries || [], ver).its.length && !q.snap && (COORD_RE.test(q.from) || COORD_RE.test(q.to))){
+      $('#out').innerHTML = '<div class="msg" role="status">Nessun risultato diretto dall\'indirizzo: provo dalla fermata più vicina, con il tratto a piedi…</div>';
+      const q2 = await snapToStops(q, signal);
+      if (stale()) return;
       if (q2){
-        diag.snapTried = q2.snapNote;
-        const r2 = await callPlan(q2, null);
-        if (filterIt(r2.data.itineraries || [], r2.ver).length){ last = q2; ver = r2.ver; data = r2.data; }
+        diag.snapTried = true;
+        const r2 = await callPlan(q2, null, signal);
+        if (stale()) return;
+        if (filterIt(r2.data.itineraries || [], r2.ver).its.length){ last = q2; ver = r2.ver; data = r2.data; }
       }
     }
     render(data, ver, how, diag);
-  }catch(err){ showMsg(err.message, true); }
-  finally{ btn.disabled = false; btn.textContent = 'Cerca soluzioni'; }
+  }catch(err){
+    if (err.name === 'AbortError' || stale()) return;
+    showMsg(err.message, true);
+  }
+  finally{ if (!stale()){ btn.disabled = false; btn.textContent = 'Cerca soluzioni'; } }
 }
 
 const COORD_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
-async function nearestStop(place){
-  const r = await fetch(`${API}/api/v1/reverse-geocode?place=${encodeURIComponent(place)}&type=STOP`);
+const kmBetween = (a, b) => Math.hypot((a.lat - b.lat) * 111.2, (a.lon - b.lon) * 111.2 * Math.cos(a.lat * Math.PI / 180));
+async function nearestStop(place, signal){
+  const r = await fetchT(`${API}/api/v1/reverse-geocode?place=${encodeURIComponent(place)}&type=STOP`, {signal}, 12000);
   if (!r.ok) return null;
   const list = (await r.json()) || [];
   const [lat, lon] = place.split(',').map(Number);
-  const d = m => Math.hypot((m.lat - lat) * 111, (m.lon - lon) * 78);
-  return list.filter(m => m.type === 'STOP' && m.id).sort((a,b) => d(a) - d(b))[0] || null;
+  return list.filter(m => m.type === 'STOP' && m.id).sort((a,b) => kmBetween(a, {lat, lon}) - kmBetween(b, {lat, lon}))[0] || null;
 }
-async function snapToStops(q){
-  const q2 = {...q}, notes = [];
+// Tratto a piedi calcolato dal servizio (strade reali), non in linea d'aria. null se non calcolabile.
+async function walkBetween(fromPlace, toPlace, signal){
+  const ver = planVer || 'v5';
+  const p = new URLSearchParams({fromPlace, toPlace, time: new Date().toISOString(), transitModes:'', directModes:'WALK', maxDirectTime:'3600'});
+  try{
+    const r = await fetchT(`${API}/api/${ver}/plan?${p}`, {signal}, 15000);
+    if (!r.ok) return null;
+    const d = await r.json();
+    const it = (d.direct || [])[0];
+    if (!it || !it.legs || !it.legs.length) return null;
+    const dist = it.legs.reduce((s, l) => s + (l.distance || 0), 0);
+    return {duration: it.duration, distance: it.legs.every(l => l.distance != null) ? dist : null, legs: it.legs};
+  }catch(e){ if (e.name === 'AbortError') throw e; return null; }
+}
+const SNAP_MAX_KM = 2.5, WALK_MAX_S = 45 * 60;
+async function snapToStops(q, signal){
+  const q2 = {...q, snap: {}};
   for (const k of ['from','to']){
     if (!COORD_RE.test(q[k])) continue;
-    try{
-      const st = await nearestStop(q[k]);
-      if (st){ q2[k] = st.id; notes.push((k === 'from' ? 'partenza dalla fermata ' : 'arrivo alla fermata ') + st.name); }
-    }catch(e){}
+    const [lat, lon] = q[k].split(',').map(Number);
+    let st = null;
+    try{ st = await nearestStop(q[k], signal); }catch(e){ if (e.name === 'AbortError') throw e; }
+    if (!st || kmBetween(st, {lat, lon}) > SNAP_MAX_KM) continue;          // fermata troppo lontana: niente scorciatoie
+    const stPlace = `${st.lat},${st.lon}`;
+    const walk = await walkBetween(k === 'from' ? q[k] : stPlace, k === 'from' ? stPlace : q[k], signal);
+    if (walk && walk.duration > WALK_MAX_S) continue;                       // camminata non ragionevole
+    q2.snap[k] = {stop: {name: st.name, lat: st.lat, lon: st.lon}, point: {lat, lon, name: (k === 'from' ? sel.from : sel.to)?.label || 'Punto scelto'}, walk};
+    q2[k] = st.id;
   }
-  if (!notes.length) return null;
-  q2.snapNote = notes.join(' · ');
+  if (!Object.keys(q2.snap).length) return null;
+  // la camminata sposta l'orario richiesto alla fermata
+  const s = q2.snap, t = Date.parse(q.time);
+  if (!q.arriveBy && s.from?.walk) q2.time = new Date(t + s.from.walk.duration * 1000).toISOString();
+  if (q.arriveBy && s.to?.walk) q2.time = new Date(t - s.to.walk.duration * 1000).toISOString();
   return q2;
+}
+// Ricompone l'itinerario porta a porta: aggiunge i tratti a piedi (o un segnaposto dichiarato se mancano)
+function shiftLeg(l, deltaMs){
+  const sh = v => v ? new Date(Date.parse(v) + deltaMs).toISOString() : v;
+  return {...l, _extra: true, startTime: sh(l.startTime), endTime: sh(l.endTime),
+    from: {...l.from, departure: sh(l.from?.departure), arrival: sh(l.from?.arrival)},
+    to: {...l.to, departure: sh(l.to?.departure), arrival: sh(l.to?.arrival)}};
+}
+function applySnap(it, snap){
+  if (!snap) return it;
+  let legs = [...(it.legs || [])], incomplete = false;
+  const st = it.startTime, en = it.endTime;
+  if (snap.from){
+    const w = snap.from.walk;
+    if (w){ const wEnd = Date.parse(w.legs[w.legs.length - 1].endTime); legs = w.legs.map(l => shiftLeg(l, Date.parse(st) - wEnd)).concat(legs); }
+    else { incomplete = true; legs.unshift({mode:'WALK', _missing:true, from:{name: snap.from.point.name, lat: snap.from.point.lat, lon: snap.from.point.lon}, to:{...snap.from.stop}, startTime: st, endTime: st, duration: 0}); }
+  }
+  if (snap.to){
+    const w = snap.to.walk;
+    if (w){ const wStart = Date.parse(w.legs[0].startTime); legs = legs.concat(w.legs.map(l => shiftLeg(l, Date.parse(en) - wStart))); }
+    else { incomplete = true; legs.push({mode:'WALK', _missing:true, from:{...snap.to.stop}, to:{name: snap.to.point.name, lat: snap.to.point.lat, lon: snap.to.point.lon}, startTime: en, endTime: en, duration: 0}); }
+  }
+  const s2 = legs[0].startTime, e2 = legs[legs.length - 1].endTime;
+  return {...it, legs, startTime: s2, endTime: e2, duration: Math.round((Date.parse(e2) - Date.parse(s2)) / 1000), _snapped: true, _incomplete: incomplete};
 }
 
 /* ---------- Visualizzazione ---------- */
-let shown = [], cursors = {};
+let shown = [], cursors = {}, sortMode = 'dep', lastVer = 'v5', lastStats = {excluded: 0};
+// Unico controllo dei vincoli scelti: vale per la ricerca principale, i tentativi e il fallback.
 function filterIt(its, ver){
   const g = last.groups, maxT = last.maxT === '' ? Infinity : +last.maxT;
-  return its.filter(it => {
+  let excluded = 0;
+  const ok = its.filter(it => {
     const tl = (it.legs || []).filter(l => modeGroup(l.mode, ver) !== 'piedi');
-    if (!tl.length) return false;
-    if (Math.max(0, tl.length - 1) > maxT) return false;
-    return tl.every(l => { const gr = modeGroup(l.mode, ver); return gr === 'altro' || g.includes(gr); });
+    if (!tl.length) return false;                                    // solo a piedi: non è un collegamento con mezzi
+    const pass = Math.max(0, tl.length - 1) <= maxT && tl.every(l => g.includes(modeGroup(l.mode, ver)));
+    if (!pass) excluded++;
+    return pass;
   });
+  return {its: ok, excluded};
 }
+// Metri a piedi realmente calcolati; null se anche un solo tratto non ha la distanza
+function walkMeters(it, ver){
+  const w = (it.legs || []).filter(l => modeGroup(l.mode, ver) === 'piedi');
+  if (w.some(l => l._missing || l.distance == null)) return null;
+  return Math.round(w.reduce((s, l) => s + l.distance, 0));
+}
+// Margini di coincidenza: tempo libero al cambio, al netto del tragitto a piedi fra i mezzi
+function transferMargins(it, ver){
+  const legs = it.legs || [], out = [];
+  let prev = null, walkSec = 0;
+  for (const l of legs){
+    const g = modeGroup(l.mode, ver);
+    if (g === 'piedi'){ if (prev) walkSec += l.duration || 0; continue; }
+    if (prev){
+      const arr = Date.parse(prev.to?.arrival || prev.endTime), dep = Date.parse(l.from?.departure || l.startTime);
+      out.push({at: l.from?.name || '', min: Math.floor((dep - arr) / 60000 - walkSec / 60), realTime: !!(prev.realTime || l.realTime)});
+    }
+    prev = l; walkSec = 0;
+  }
+  return out;
+}
+const SORTS = {
+  dep:  ['Partenza', (a, b) => Date.parse(a.startTime) - Date.parse(b.startTime)],
+  fast: ['Più veloce', (a, b) => a.duration - b.duration || Date.parse(a.startTime) - Date.parse(b.startTime)],
+  chg:  ['Meno cambi', (a, b, v) => nTransit(a, v) - nTransit(b, v) || a.duration - b.duration],
+  walk: ['Meno cammino', (a, b, v) => { const x = walkMeters(a, v), y = walkMeters(b, v); return (x == null) - (y == null) || (x ?? 0) - (y ?? 0) || a.duration - b.duration; }],
+};
+const nTransit = (it, v) => (it.legs || []).filter(l => modeGroup(l.mode, v) !== 'piedi').length;
 function render(data, ver, how, diag){
-  const its = filterIt(data.itineraries || [], ver);
-  if (how === 'new') shown = [];
+  lastVer = ver;
+  const raw = (data.itineraries || []).map(it => applySnap(it, last.snap));
+  const {its, excluded} = filterIt(raw, ver);
+  if (how === 'new'){ shown = []; lastStats = {excluded: 0}; }
+  lastStats.excluded += excluded;
   const key = it => it.legs.map(l => (l.tripId || l.mode) + l.startTime).join('|');
   const seen = new Set(shown.map(key));
   const fresh = its.filter(it => !seen.has(key(it)));
   shown = how === 'prev' ? fresh.concat(shown) : shown.concat(fresh);
-  shown.sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
   if (how === 'new' || how === 'prev') cursors.prev = data.previousPageCursor;
   if (how === 'new' || how === 'next') cursors.next = data.nextPageCursor;
-
-  const out = $('#out');
+  paintResults(diag);
+}
+function paintResults(diag){
+  const ver = lastVer, out = $('#out');
+  shown.sort((a, b) => SORTS[sortMode][1](a, b, ver));
   if (!shown.length){
-    const dg = diag ? `<br><small style="opacity:.7">Diagnostica: API ${esc(diag.ver)} · soluzioni ricevute ${diag.raw} (scartate dai filtri ${diag.raw}) · solo a piedi ${diag.direct} · da ${esc(diag.from)} · a ${esc(diag.to)}${diag.snapTried ? ' · riprovato con ' + esc(diag.snapTried) : ''}</small>` : '';
-    out.innerHTML = `<div class="msg">Nessuna soluzione trovata con questi filtri.<br><small>Prova ad aumentare i cambi ammessi, includere altri mezzi o cambiare orario. Alcune aziende locali potrebbero non essere ancora coperte dai dati aperti.</small>${dg}</div>` + pager();
+    const why = lastStats.excluded ? `Il servizio ha proposto ${lastStats.excluded} soluzioni, ma usano mezzi non selezionati o più cambi di quelli ammessi.` : 'Il servizio non ha trovato collegamenti con mezzi per questo orario.';
+    const dg = diag ? `<br><small style="opacity:.7">Dettagli: API ${esc(diag.ver)} · soluzioni ricevute ${diag.raw} · solo a piedi ${diag.direct}${diag.snapTried ? ' · tentata anche la fermata più vicina' : ''}</small>` : '';
+    out.innerHTML = `<div class="msg" role="status"><b>Nessuna soluzione.</b> ${why}<br><small>Puoi includere altri mezzi, ammettere più cambi o cambiare orario. Alcune aziende locali potrebbero non essere coperte dai dati aperti.</small>${dg}</div>` + pager();
     bindPager(); return;
   }
-  const head = `<div class="msg" style="margin-bottom:12px">${shown.length} soluzioni · ${esc(sel.from?.label.split(',')[0] || '')} → ${esc(sel.to?.label.split(',')[0] || '')} · ${fmtD(shown[0].startTime)}${last.snapNote ? `<br><small>📍 Calcolato con ${esc(last.snapNote)} (la più vicina al punto scelto)</small>` : ''}</div>`;
+  const sn = last.snap, notes = [];
+  if (sn) notes.push(`📍 Dall'indirizzo non risultavano collegamenti diretti: le soluzioni passano dalla fermata più vicina${sn.from ? ' (partenza: ' + esc(sn.from.stop.name) + ')' : ''}${sn.to ? ' (arrivo: ' + esc(sn.to.stop.name) + ')' : ''}. Il tratto a piedi è ${shown.some(i => i._incomplete) ? '<b>in parte non calcolabile: vedi gli avvisi nelle soluzioni</b>' : 'calcolato e incluso negli orari'}.`);
+  if (lastStats.excluded) notes.push(`🚫 ${lastStats.excluded} soluzioni nascoste perché usano mezzi non selezionati o troppi cambi.`);
+  const head = `<div class="msg" style="margin-bottom:8px">${shown.length} soluzioni · ${esc(sel.from?.label.split(',')[0] || '')} → ${esc(sel.to?.label.split(',')[0] || '')} · ${fmtD(shown[0].startTime)}${notes.map(n => `<br><small>${n}</small>`).join('')}</div>
+    <div class="chips" id="sorts" style="margin-bottom:10px" role="group" aria-label="Ordina le soluzioni">${Object.entries(SORTS).map(([k, [lab]]) => `<span class="chip ${k === sortMode ? 'on' : ''}" data-s="${k}" role="button" tabindex="0" aria-pressed="${k === sortMode}">${lab}</span>`).join('')}</div>`;
   out.innerHTML = head + shown.map((it,i) => card(it, i, ver)).join('') + pager();
+  out.querySelectorAll('#sorts .chip').forEach(c => { const go = () => { sortMode = c.dataset.s; paintResults(diag); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }; });
   out.querySelectorAll('.it').forEach(c => c.addEventListener('click', e => {
     if (e.target.closest('a') || e.target.closest('.rmap') || e.target.closest('details.stops')) return;
     c.classList.toggle('open');
@@ -762,10 +904,15 @@ function card(it, i, ver){
     const st = l.routeColor ? `style="background:#${esc(l.routeColor)};color:#${esc(l.routeTextColor || 'fff')}"` : '';
     return `<span class="badge" ${st}>${ICON[g]} ${esc(lab)}</span>`;
   }).join('<span class="arrow">›</span>');
-  const fare = fareText(it);
+  const wm = walkMeters(it, ver);
+  const margins = transferMargins(it, ver).filter(x => x.min < 3);
+  const nextDay = romeDay(it.endTime) !== romeDay(it.startTime);
+  const warn = [];
+  if (it._incomplete) warn.push('⚠️ Manca un tratto a piedi non calcolabile: orari e durata non lo includono');
+  margins.forEach(x => warn.push(x.min < 0 ? `⚠️ Coincidenza a rischio a ${esc(x.at)} (${x.realTime ? 'con i ritardi attuali ' : ''}il mezzo successivo parte prima dell'arrivo)` : `⏱️ Coincidenza stretta a ${esc(x.at)}: ${x.min} min${x.min ? '' : ' di margine'}`));
   return `<div class="card it">
     <div class="top">
-      <div class="times">${fmtT(it.startTime)} → ${fmtT(it.endTime)}</div>
+      <div class="times">${fmtT(it.startTime)} → ${fmtT(it.endTime)}${nextDay ? ' <small class="late" title="arrivo il giorno dopo">+1 g</small>' : ''}</div>
       <div class="dur"><b>${fmtDur(it.duration)}</b><br>${changes === 0 ? 'Diretto' : changes + (changes === 1 ? ' cambio' : ' cambi')}</div>
     </div>
     <div class="modes">${chips}</div>
@@ -773,9 +920,10 @@ function card(it, i, ver){
       ${anyCanc ? '<span class="canc">⚠ Corsa cancellata</span> · ' : ''}
       ${first?.realTime ? (dDep > 0 ? `<span class="late">Partenza +${dDep}′</span>` : '<span class="ontime">In orario</span>') : ''}
       ${lastL?.realTime && dArr > 0 ? ` · <span class="late">Arrivo +${dArr}′</span>` : ''}
-      ${fare ? ` · 💶 ${esc(fare)}` : ''}
+      ${wm != null ? `🚶 ${wm >= 1000 ? (wm/1000).toFixed(1) + ' km' : wm + ' m'} a piedi` : '🚶 cammino n.d.'}
       <span style="float:right;color:var(--mute)">Dettagli ▾</span>
     </div>
+    ${warn.length ? `<div class="sub" style="margin-top:4px;font-size:13px;color:var(--warn)">${warn.join('<br>')}${margins.length ? '<br><span style="color:var(--mute);font-size:11px">Margine calcolato sugli orari: non garantisce la coincidenza.</span>' : ''}</div>` : ''}
     <div class="det"><div class="rmap" data-i="${i}"></div>${legs.map(l => legHtml(l, ver)).join('')}</div>
   </div>`;
 }
@@ -794,9 +942,10 @@ function fareText(it){
 function legHtml(l, ver){
   const g = modeGroup(l.mode, ver);
   if (g === 'piedi'){
+    if (l._missing) return `<div class="leg walk"><div class="t">–</div><div class="what" style="color:var(--warn)">⚠️ <b>Tratto a piedi non calcolabile</b> da ${esc(l.from?.name)} a ${esc(l.to?.name)}: non è incluso negli orari né nella durata.</div></div>`;
     const m = Math.max(1, Math.round((l.duration || 0)/60));
-    const dist = l.distance ? ` · ${l.distance >= 1000 ? (l.distance/1000).toFixed(1) + ' km' : Math.round(l.distance) + ' m'}` : '';
-    return `<div class="leg walk"><div class="t">${fmtT(l.startTime)}</div><div class="what">🚶 A piedi ${m} min${dist} fino a ${esc(l.to?.name)}</div></div>`;
+    const dist = l.distance != null ? ` · ${l.distance >= 1000 ? (l.distance/1000).toFixed(1) + ' km' : Math.round(l.distance) + ' m'}` : ' · distanza non disponibile';
+    return `<div class="leg walk"><div class="t">${fmtT(l.startTime)}</div><div class="what">🚶 A piedi ${m} min${dist} fino a ${esc(l.to?.name)}${l._extra ? '<div class="sub" style="font-size:12px">Tratto aggiunto: dall\'indirizzo alla fermata più vicina, calcolato sulle strade.</div>' : ''}</div></div>`;
   }
   const dd = delayMin(l.from?.departure, l.from?.scheduledDeparture);
   const da = delayMin(l.to?.arrival, l.to?.scheduledArrival);
@@ -806,7 +955,7 @@ function legHtml(l, ver){
   const live = liveLinks(l, g).map(x => x.trip ? `<a href="#" data-trip="${esc(x.trip)}" data-tripname="${esc(x.name)}">🚆 ${esc(x.label)}</a>` : `<a href="${esc(x.url)}" target="_blank" rel="noopener">📡 ${esc(x.label)}</a>`).join('');
   const legKey = 'L' + (++legSeq); legStore[legKey] = l;
   const name = l.displayName || l.routeShortName || NAME[g];
-  const tix = ticketLinks(l).map(t => `<a class="${t.main ? 'main' : ''}" href="${esc(t.url)}" target="_blank" rel="noopener">🎫 ${esc(t.label)}</a>`).join('');
+  const tix = ticketLinks(l).map(t => `<a class="${t.main ? 'main' : ''}" href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.label)}</a>`).join('');
   return `<div class="leg">
     <div class="t">${fmtT(l.from?.departure || l.startTime)}${sched(l.from?.departure, l.from?.scheduledDeparture)}</div>
     <div class="what">
@@ -832,7 +981,7 @@ function stopRow(st, cls, kind){
 async function fetchTrip(tripId){
   for (const ver of [planVer, 'v5', 'v4', 'v2', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
     try{
-      const r = await fetch(`${API}/api/${ver}/trip?tripId=${encodeURIComponent(tripId)}`);
+      const r = await fetchT(`${API}/api/${ver}/trip?tripId=${encodeURIComponent(tripId)}`, {}, 15000);
       if (r.ok) return await r.json();
     }catch(e){}
   }
@@ -915,7 +1064,7 @@ const compactRels = els => (els || []).filter(x => x.type === 'relation' && x.ta
 });
 async function osmLines(refs, bb){
   const r = await cachedGet('lines:' + refs.join(',') + '@' + bb, async force => {
-    try{ const j = await withTimeout(bridgeGet({a:'lines', refs: refs.join(','), bbox: bb, ...(force ? {fresh: 1} : {})}), 60000); return compactRels(j.elements); }
+    try{ const j = await bridgeGet({a:'lines', refs: refs.join(','), bbox: bb, ...(force ? {fresh: 1} : {})}, 60000); return compactRels(j.elements); }
     catch(e){ console.warn('ponte linee', e); }
     return compactRels((await overpass(`[out:json][timeout:20];(${refs.map(r => `relation["type"="route"]["ref"="${r.replace(/"/g, '')}"](${bb});`).join('')});out tags center;`)).elements);
   });
@@ -947,10 +1096,10 @@ function prefetchStops(ids){
   todo.forEach(id => stopsPending[id] = p);
   p.catch(() => {});
 }
-const fmtDay = t => new Date(t).toLocaleDateString('it-IT', {day:'numeric', month:'short', year:'numeric'});
+const fmtDay = t => new Date(t).toLocaleDateString('it-IT', {day:'numeric', month:'short', year:'numeric', timeZone:TZ});
 async function osmLine(id){
   const ids = String(id).split(',').sort().join(',');
-  try{ const j = await withTimeout(bridgeGet({a:'line', id: ids}), 70000); return {elements: j.elements}; }
+  try{ const j = await bridgeGet({a:'line', id: ids}, 70000); return {elements: j.elements}; }
   catch(e){ console.warn('ponte linea', e); }
   return overpass(`[out:json][timeout:25];relation(id:${ids})->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;`);
 }
@@ -990,7 +1139,9 @@ $('#tabs').addEventListener('click', e => {
   showTab(b.dataset.t, true);
 });
 $('#lf').addEventListener('submit', e => { e.preventDefault(); runLineSearch($('#lineq').value.trim()); });
+let lineSeq = 0;
 async function runLineSearch(text){
+  const seq = ++lineSeq, stale = () => seq !== lineSeq;
   const pq = parseLineQuery(text);
   const out = $('#lout');
   if (!pq){ out.innerHTML = '<div class="msg">Scrivi il nome della linea, es. "S9", "M4", "metro 2 Milano", "bus 91".</div>'; return; }
@@ -1001,7 +1152,7 @@ async function runLineSearch(text){
     let c = (sel.from && sel.from.lat != null) ? sel.from : (store('intervia.bias') || {lat:DEFAULT_C[0], lon:DEFAULT_C[1]});
     if (pq.place){
       try{
-        const r = await withTimeout(fetch(`${PHOTON}?q=${encodeURIComponent(pq.place)}&limit=1&osm_tag=place&bbox=6.6,35.4,18.6,47.1`), 8000);
+        const r = await fetchT(`${PHOTON}?q=${encodeURIComponent(pq.place)}&limit=1&osm_tag=place&bbox=6.6,35.4,18.6,47.1`, {}, 8000);
         const f = (await r.json()).features?.[0];
         if (f) c = {lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0]};
       }catch(e){}
@@ -1015,6 +1166,7 @@ async function runLineSearch(text){
     const osmP = osmLines(pq.refs, bb);   // parte subito, in parallelo
     osmP.catch(() => {});
     const live = await lineFromTimetable(pq, c).catch(() => []);
+    if (stale()) return;
     if (live.length){
       out.innerHTML = head(live.length, 'live') + live.map((v, i) => `<div class="card it lvar" data-i="${i}">
           <div class="top"><div><span class="badge" ${v.color ? `style="background:#${esc(v.color)};color:#${esc(v.textColor || 'fff')}"` : ''}>${ICON[v.group] || '🚏'} ${esc(v.name)}</span> <b>${esc(v.from)} → ${esc(v.to)}</b></div>
@@ -1031,6 +1183,7 @@ async function runLineSearch(text){
     // 2) in alternativa da OpenStreetMap
     out.innerHTML = '<div class="msg">Cerco la linea su OpenStreetMap… la prima volta può richiedere fino a un minuto, poi è immediata.</div>';
     const data = await osmP;
+    if (stale()) return;
     const OK = ['train','light_rail','subway','tram','bus','trolleybus','ferry','monorail','coach'];
     const km = x => x.center ? Math.hypot((x.center.lat - c.lat) * 111, (x.center.lon - c.lon) * 78) : 999;
     const rels = (data.elements || []).filter(x => OK.includes(x.tags?.route) && (!pq.modes || pq.modes.includes(x.tags.route)))
@@ -1054,11 +1207,8 @@ async function runLineSearch(text){
     }));
     bindFavButtons(out);
     prefetchStops(rels.slice(0, 12).map(r => r.id));
-  }catch(err){ out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
-  finally{ btn.disabled = false; }
-}
-function withTimeout(promise, ms){
-  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('Il servizio non ha risposto in tempo, riprova.')), ms))]);
+  }catch(err){ if (!stale()) out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+  finally{ if (!stale()) btn.disabled = false; }
 }
 // Linee dagli orari Transitous: corse in zona nelle prossime 2 ore con quel nome di linea
 async function lineFromTimetable(pq, c){
@@ -1067,7 +1217,7 @@ async function lineFromTimetable(pq, c){
   let segs = null;
   for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
     try{
-      const r = await withTimeout(fetch(`${API}/api/${ver}/map/trips?min=${min}&max=${max}&startTime=${now.toISOString()}&endTime=${end.toISOString()}&zoom=13`), 12000);
+      const r = await fetchT(`${API}/api/${ver}/map/trips?min=${min}&max=${max}&startTime=${now.toISOString()}&endTime=${end.toISOString()}&zoom=13`, {}, 12000);
       if (r.ok){ segs = await r.json(); if (!planVer) planVer = ver; break; }
     }catch(e){}
   }
@@ -1197,7 +1347,7 @@ async function departuresHtml(s, ref){
     if (!st) return 'Fermata non trovata negli orari.';
     let data = null;
     for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
-      const r = await fetch(`${API}/api/${ver}/stoptimes?stopId=${encodeURIComponent(st.id)}&n=30`).catch(() => null);
+      const r = await fetchT(`${API}/api/${ver}/stoptimes?stopId=${encodeURIComponent(st.id)}&n=30`, {}, 15000).catch(() => null);
       if (r && r.ok){ data = await r.json(); break; }
     }
     const list = (data && data.stopTimes) || [];
@@ -1224,7 +1374,7 @@ let stSel = null, stArr = false, stTimer = null;
     timer = setTimeout(async () => {
       try{
         ctrl?.abort(); ctrl = new AbortController();
-        const r = await fetch(`${API}/api/v1/geocode?text=${encodeURIComponent(q)}&language=it&type=STOP`, {signal:ctrl.signal});
+        const r = await fetchT(`${API}/api/v1/geocode?text=${encodeURIComponent(q)}&language=it&type=STOP`, {signal:ctrl.signal}, 10000);
         items = ((await r.json()) || []).filter(m => m.type === 'STOP').map(transitousItem).slice(0, 12);
         list.innerHTML = items.length ? items.map((m,i) => `<div data-i="${i}">🚏 ${esc(m.main)}<small>${esc(m.sub)}</small></div>`).join('') : '<div>Nessuna fermata trovata</div>';
         list.style.display = 'block';
@@ -1258,12 +1408,15 @@ function openStation(x){
   let r = (store('intervia.stations') || []).filter(y => y.id !== x.id); r.unshift(x); store('intervia.stations', r.slice(0, 8)); renderStRecent();
   loadBoard();
 }
+let boardSeq = 0;
 async function loadBoard(){
   clearInterval(stTimer);
+  const seq = ++boardSeq;
   const out = $('#stout'); out.innerHTML = '<div class="msg">Carico il tabellone…</div>';
   let data = null;
   for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
-    const r = await fetch(`${API}/api/${ver}/stoptimes?stopId=${encodeURIComponent(stSel.id)}&n=40&arriveBy=${stArr}`).catch(() => null);
+    const r = await fetchT(`${API}/api/${ver}/stoptimes?stopId=${encodeURIComponent(stSel.id)}&n=40&arriveBy=${stArr}`, {}, 15000).catch(() => null);
+    if (seq !== boardSeq) return;
     if (r && r.ok){ data = await r.json(); break; }
   }
   if (!data){ out.innerHTML = '<div class="msg err">Tabellone non disponibile.</div>'; return; }
@@ -1289,10 +1442,14 @@ async function loadBoard(){
 /* ---------- Ponte dati (api.php su hosting PHP) ---------- */
 const BRIDGE_DEFAULT = 'https://www.iz2oii.eu/intervia/api.php';
 const bridge = () => store('intervia.bridge') || BRIDGE_DEFAULT;
-async function bridgeGet(params){
+async function bridgeGet(params, ms = 30000){
   let r;
-  try{ r = await fetch(bridge() + '?' + new URLSearchParams(params)); }
-  catch(e){ throw new Error('Server dati non raggiungibile (' + bridge() + '). Verifica di aver caricato api.php e l\'indirizzo in Avvisi → ⚙️ Server dati.'); }
+  try{ r = await fetchT(bridge() + '?' + new URLSearchParams(params), {}, ms); }
+  catch(e){
+    if (e.kind === 'timeout') throw new NetError('timeout', 'Il server dati non ha risposto in tempo. Riprova tra poco.');
+    throw new NetError('network', 'Server dati non raggiungibile (' + bridge() + '). Controlla la rete e l\'indirizzo in Avvisi → ⚙️ Server dati.');
+  }
+  if (r.status === 429) throw new NetError('busy', 'Troppe richieste al server dati: riprova fra un minuto.');
   let j; try{ j = await r.json(); }catch(e){ throw new Error('Il server dati non ha risposto correttamente (' + r.status + '). Controlla che api.php sia caricato e che il sito supporti PHP.'); }
   if (!j.ok) throw new Error(j.error || 'Errore dal server dati');
   return j;
@@ -1316,11 +1473,14 @@ function renderTrRecent(){
 $('#trrecent').addEventListener('click', e => { const b = e.target.closest('button'); if (b){ $('#trainq').value = b.dataset.n; openTrain(b.dataset.n); } });
 $('#tf').addEventListener('submit', e => { e.preventDefault(); const n = $('#trainq').value.replace(/\D/g, ''); if (n) openTrain(n); });
 renderTrRecent();
+let trainSeq = 0;
 async function openTrain(n, o, d){
   clearInterval(trTimer);
+  const seq = ++trainSeq;
   const out = $('#tout'); out.innerHTML = '<div class="msg">Cerco il treno…</div>';
   try{
     const j = await bridgeGet(o ? {a:'train', n, o, d} : {a:'train', n});
+    if (seq !== trainSeq) return;
     if (j.matches){
       if (!j.matches.length){ out.innerHTML = `<div class="msg">Nessun treno ${esc(n)} trovato oggi.</div>`; return; }
       out.innerHTML = `<div class="msg" style="margin-bottom:10px">Più treni con il numero ${esc(n)}: scegli quello giusto</div>` +
@@ -1362,9 +1522,11 @@ function renderTrain(t, tripCtx){
 }
 async function openTrip(tripId, name){
   clearInterval(trTimer); trCur = null;
+  const seq = ++trainSeq;
   showTab('train');
   const out = $('#tout'); out.innerHTML = '<div class="msg">Carico la corsa…</div>';
   const tr = await fetchTrip(tripId);
+  if (seq !== trainSeq) return;
   const l = tr && ((tr.legs || []).find(x => x.tripId === tripId) || (tr.legs || [])[0]);
   if (!l){ out.innerHTML = '<div class="msg err">Corsa non disponibile.</div>'; return; }
   const now = Date.now(), P = x => x ? Date.parse(x) : null;
@@ -1541,12 +1703,12 @@ renderCityFavs();
 async function fetchCityLines(city, force){
   let areaId = null, label = city;
   try{
-    const r = await withTimeout(fetch(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`), 8000);
+    const r = await fetchT(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`, {}, 8000);
     const f = ((await r.json()).features || []).find(x => x.properties?.osm_type === 'R');
     if (f){ areaId = 3600000000 + f.properties.osm_id; label = f.properties.name || city; }
   }catch(e){}
   let els;
-  try{ els = (await withTimeout(bridgeGet({...(areaId ? {a:'citylines', area: areaId} : {a:'citylines', name: city}), ...(force ? {fresh: 1} : {})}), 150000)).elements; }
+  try{ els = (await bridgeGet({...(areaId ? {a:'citylines', area: areaId} : {a:'citylines', name: city}), ...(force ? {fresh: 1} : {})}, 150000)).elements; }
   catch(e){
     const sel = areaId ? `area(${areaId})->.a;` : `area["name"="${city.replace(/"/g, '')}"]["boundary"="administrative"]["admin_level"~"^(7|8)$"]->.a;`;
     els = (await overpass(`[out:json][timeout:60];${sel}relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;`)).elements;
@@ -1554,13 +1716,16 @@ async function fetchCityLines(city, force){
   els = compactRels(els);
   return els.length ? {label, els} : null;
 }
+let citySeq = 0;
 async function runCityLines(city, force){
   if (!city) return;
+  const seq = ++citySeq, stale = () => seq !== citySeq;
   const out = $('#lout'), btn = $('#citygo'); btn.disabled = true;
   const key = 'city:' + city.toLowerCase().trim();
   if (force || !lcGet(key)) out.innerHTML = `<div class="msg">Cerco tutte le linee di ${esc(city)}… per una grande città la prima volta può richiedere fino a due minuti; poi resta salvata sul telefono.</div>`;
   try{
     const res = await cachedGet(key, f => fetchCityLines(city, f || force), {force});
+    if (stale()) return;
     if (!res.v){ out.innerHTML = `<div class="msg">Nessuna linea trovata a ${esc(city)} nei dati OpenStreetMap. Controlla il nome del comune (es. "Aquileia").</div>`; return; }
     const label = res.v.label, els = res.v.els, center = null;
     let cl = (store('intervia.cities') || []).filter(x => x.toLowerCase() !== label.toLowerCase()); cl.unshift(label); store('intervia.cities', cl.slice(0, 8)); renderCityFavs();

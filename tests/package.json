@@ -1,0 +1,7 @@
+{
+  "name": "intervia-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node unit.test.mjs && node smoke.test.mjs" },
+  "devDependencies": { "jsdom": "^25.0.0" }
+}

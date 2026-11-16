@@ -11,8 +11,12 @@
  *   api.php?a=ping                               verifica funzionamento
  */
 
+@ini_set('display_errors', '0');   // nessun percorso di file o dettaglio interno nelle risposte
+
 // Siti autorizzati a usare il ponte (aggiungi qui altri domini se serve)
-$ALLOWED = ['https://andreaglightburn.github.io', 'https://iz2oii.eu', 'https://www.iz2oii.eu', 'http://localhost', 'null'];
+$ALLOWED = ['https://andreaglightburn.github.io', 'https://iz2oii.eu', 'https://www.iz2oii.eu', 'http://localhost'];
+// Nota: CORS decide solo quali pagine web possono leggere le risposte; non è un'autenticazione.
+// Contro gli abusi c'è il limite di richieste per IP più sotto.
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin && in_array(rtrim($origin, '/'), $ALLOWED, true)) {
@@ -22,6 +26,45 @@ if ($origin && in_array(rtrim($origin, '/'), $ALLOWED, true)) {
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
+
+function data_dir($sub) {
+    $base = __DIR__ . '/cache';
+    if (!is_dir($base)) @mkdir($base, 0700);
+    if (is_dir($base) && !is_file($base . '/.htaccess')) @file_put_contents($base . '/.htaccess', "Require all denied\nDeny from all\n");
+    if (!is_dir($base) || !is_writable($base)) $base = sys_get_temp_dir() . '/intervia';
+    $d = $base . '/' . $sub;
+    if (!is_dir($d)) @mkdir($d, 0700, true);
+    return $d;
+}
+
+/* ---------- Limite di richieste per IP (finestra di un minuto) ---------- */
+function client_key() {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';          // non si usa X-Forwarded-For: è falsificabile
+    if (strpos($ip, ':') !== false) {                    // IPv6: si raggruppa per /64
+        $bin = @inet_pton($ip);
+        if ($bin !== false) $ip = bin2hex(substr($bin, 0, 8)) . '::/64';
+    }
+    return substr(sha1('intervia|' . $ip), 0, 20);       // nei file non resta l'IP in chiaro
+}
+function rate_limit($bucket, $max) {
+    $f = data_dir('rate') . '/' . client_key() . '_' . $bucket . '_' . date('YmdHi');
+    $n = (int)@file_get_contents($f) + 1;
+    @file_put_contents($f, (string)$n, LOCK_EX);
+    if ($n > $max) { header('Retry-After: 60'); out(['ok' => false, 'error' => 'Troppe richieste: riprova fra un minuto.'], 429); }
+}
+/* ---------- Pulizia periodica (circa 1 richiesta su 100) ---------- */
+function housekeeping() {
+    if (mt_rand(1, 100) !== 1) return;
+    $now = time();
+    foreach (glob(data_dir('rate') . '/*') ?: [] as $f) if ($now - @filemtime($f) > 300) @unlink($f);
+    foreach (glob(sys_get_temp_dir() . '/intervia_cache/*') ?: [] as $f) if ($now - @filemtime($f) > 2 * 86400) @unlink($f);
+    $osm = glob(data_dir('osm') . '/*.json') ?: [];
+    foreach ($osm as $i => $f) if ($now - @filemtime($f) > 180 * 86400) { @unlink($f); unset($osm[$i]); }
+    if (count($osm) > 3000) {                             // tetto al numero di file: via i più vecchi
+        usort($osm, fn($a, $b) => @filemtime($a) <=> @filemtime($b));
+        foreach (array_slice($osm, 0, count($osm) - 3000) as $f) @unlink($f);
+    }
+}
 
 const VT_BASES = ['https://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/', 'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/'];
 const UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 Intervia/1.1';
@@ -41,7 +84,8 @@ function fetch_url($url, $ttl, $timeout = 15) {
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '']);
+            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '',
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_MAXREDIRS => 3]);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json, text/plain, */*', 'Referer: https://www.viaggiatreno.it/infomobilita/index.jsp']);
         $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         if ($body === false) $LAST_ERR = curl_error($ch); elseif ($code >= 400) $LAST_ERR = 'HTTP ' . $code;
@@ -102,9 +146,13 @@ function vt($path, $ttl) {
 }
 
 $a = $_GET['a'] ?? '';
+if (!in_array($a, ['ping', 'diag', 'train', 'info', 'strikes', 'lines', 'line', 'citylines'], true)) fail('Azione non valida', 400);
+rate_limit('all', 90);
+if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heavy', $a === 'citylines' || $a === 'diag' ? 6 : 30);
+housekeeping();
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.5']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0']);
 if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
     $res = [];
     foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
@@ -213,15 +261,7 @@ if ($a === 'strikes') {
 // Dati OpenStreetMap: conservati senza scadenza; rinnovati in sottofondo dopo 7 giorni
 const OSM_FRESH = 7 * 86400;
 function osm_cache_file($ql) {
-    $dir = sys_get_temp_dir() . '/intervia_osm';
-    if (!is_dir($dir)) @mkdir($dir, 0700, true);
-    // preferisce una cartella accanto allo script (sopravvive alla pulizia della cartella temporanea)
-    $local = __DIR__ . '/cache';
-    if (is_dir($local) || @mkdir($local, 0700)) {
-        if (!is_file($local . '/.htaccess')) @file_put_contents($local . '/.htaccess', "Require all denied\nDeny from all\n");
-        if (is_writable($local)) $dir = $local;
-    }
-    return $dir . '/' . sha1($ql) . '.json';
+    return data_dir('osm') . '/' . sha1($ql) . '.json';
 }
 function overpass_fetch($ql) {
     global $LAST_ERR;
@@ -243,7 +283,8 @@ function overpass_fetch($ql) {
     foreach ($servers as $srv) {
         $ch = curl_init($srv . '?data=' . rawurlencode($ql));
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '']);
+            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '',
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_MAXREDIRS => 3]);
         curl_multi_add_handle($mh, $ch); $hs[] = [$ch, $srv];
     }
     $result = false; $running = 0;
@@ -289,12 +330,22 @@ function overpass_q($ql) {
             }
         }
     }
+    // una sola richiesta per volta verso OpenStreetMap per la stessa interrogazione:
+    // chi arriva dopo aspetta e poi trova il dato già salvato
+    $lock = @fopen($file . '.lock', 'c');
+    if ($lock) flock($lock, LOCK_EX);
+    if (is_file($file) && time() - filemtime($file) < 120) {
+        $j = json_decode(file_get_contents($file), true);
+        if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
+        if (is_array($j)) { $OSM_DATE = date('c', filemtime($file)); return $j; }
+    }
     $j = overpass_fetch($ql);
+    if ($j !== false) @file_put_contents($file, json_encode($j, JSON_UNESCAPED_UNICODE));
+    if ($lock) { flock($lock, LOCK_UN); fclose($lock); @unlink($file . '.lock'); }
     if ($j === false) {
         if (is_file($file)) { $old = json_decode(file_get_contents($file), true); if (is_array($old)) { $OSM_DATE = date('c', filemtime($file)); return $old; } }
         return false;
     }
-    @file_put_contents($file, json_encode($j, JSON_UNESCAPED_UNICODE));
     $OSM_DATE = date('c');
     return $j;
 }

@@ -1,18 +1,45 @@
 # Intervia
 
-Trova tutte le soluzioni per spostarti da A a B con i mezzi pubblici: treni, bus, metro, tram e traghetti.
+Trova le soluzioni per spostarti da A a B con i mezzi pubblici (treni, bus, metro, tram, traghetti) e consulta tabelloni, treni, linee e avvisi.
 
-- Ricerca di stazioni, fermate e indirizzi, oppure partenza dalla posizione attuale
-- Data e ora di partenza o di arrivo
-- Solo diretti oppure numero massimo di cambi
-- Filtro per tipo di mezzo
-- Orari, binari, ritardi in tempo reale (dove disponibili) e link per l'acquisto dei biglietti
+App web installabile (PWA) pubblicata su GitHub Pages: https://andreaglightburn.github.io/intervia/
 
-App web installabile (PWA), un solo file HTML, nessun server.
+## Funzioni
+- **Percorso**: ricerca da indirizzo, fermata o punto sulla mappa; partenza o arrivo a un orario; numero massimo di cambi; scelta dei mezzi. Le soluzioni si possono ordinare per partenza, velocità, meno cambi o meno cammino. Per ogni soluzione si vedono tratti a piedi, coincidenze strette, ritardi in tempo reale, mappa del tragitto e fermate intermedie, più il link al sito dell'operatore (nessun acquisto diretto precompilato).
+- **Stazioni**: tabellone partenze/arrivi con ritardi e binari; da ogni corsa si apre la vista "segui la corsa".
+- **Treni**: ricerca per numero (ViaggiaTreno, tramite il server PHP) e vista della singola corsa.
+- **Linee**: ricerca di una linea (es. "S9", "M4 Milano") ed elenco di tutte le linee di un comune, con fermate e mappa.
+- **Avvisi**: infomobilità RFI e scioperi del Ministero dei Trasporti (tramite il server PHP).
+- Preferiti per linee, treni e stazioni; dati statici delle linee conservati sul telefono.
 
-Dati orari e percorsi: [Transitous](https://transitous.org) (servizio comunitario basato su dati GTFS aperti e OpenStreetMap).
+## Architettura
+| Parte | Dove | Ruolo |
+|---|---|---|
+| `index.html`, `manifest.webmanifest`, `sw.js`, `icons/` | GitHub Pages | L'app (un solo file HTML, nessuna build) |
+| `server/api.php` | Hosting PHP esterno (es. Aruba, `https://www.iz2oii.eu/intervia/api.php`) | Ponte verso servizi che il browser non può interrogare direttamente |
 
-## Struttura
-- `index.html` – l'app
-- `manifest.webmanifest`, `sw.js` – installazione e funzionamento offline dell'interfaccia
-- `icons/` – logo e icone in SVG
+### Servizi esterni
+| Servizio | Usato da | Per |
+|---|---|---|
+| [Transitous](https://transitous.org) (MOTIS) | browser | percorsi, tratti a piedi, tabelloni, corse, fermate vicine |
+| [Photon](https://photon.komoot.io) (OpenStreetMap) | browser | indirizzi, luoghi, confini comunali |
+| Tile OpenStreetMap + Leaflet (unpkg) | browser | mappe |
+| Overpass API (OpenStreetMap) | server PHP (e browser come riserva) | linee e fermate |
+| ViaggiaTreno (non ufficiale) | server PHP | ricerca treno per numero |
+| RFI feed RSS infomobilità | server PHP | avvisi |
+| MIT calendario scioperi | server PHP | scioperi |
+
+Nessuna chiave API è necessaria o presente nel repository.
+
+## Pubblicazione
+- **App**: ogni push su `main` viene pubblicato da GitHub Pages. Ad ogni modifica di `index.html` aumentare la versione `CACHE` in `sw.js`.
+- **Server**: caricare `server/api.php` nella cartella `/intervia/` del sito PHP. La cartella `cache/` accanto al file si crea da sola ed è protetta da `.htaccess`. Verifica: `api.php?a=ping`. L'indirizzo del server si cambia nell'app in *Avvisi → ⚙️ Server dati*.
+
+## Test
+```
+cd tests && npm install && npm test
+```
+- `unit.test.mjs`: funzioni di filtro, porta a porta, orari, biglietti, richieste (estratte da `index.html`).
+- `smoke.test.mjs`: l'app intera in un browser simulato (jsdom) con risposte finte dei servizi.
+
+I test non usano la rete: la qualità dei dati reali va verificata con la checklist in `HANDOFF.md`.

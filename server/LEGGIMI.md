@@ -9,6 +9,12 @@ Serve alle schede **Treni** e **Avvisi**: legge ViaggiaTreno, l'infomobilità RF
 
 Indirizzo diverso? Cambialo nell'app: **Avvisi → ⚙️ Server dati**.
 
+## Versione 2.0
+- Limite di richieste per IP (90/min; 6/min per l'elenco linee di una città; 30/min per linee e fermate). L'IP non viene salvato in chiaro.
+- Richieste identiche simultanee verso OpenStreetMap: ne parte una sola, le altre aspettano il risultato.
+- Pulizia automatica della cache (circa 1 richiesta su 100).
+- Diagnostica: `api.php?a=diag` mostra se il server raggiunge ViaggiaTreno, RFI e il Ministero.
+
 ## Note
 - Risponde solo alle azioni previste (non è un proxy aperto) e solo ai siti elencati in `$ALLOWED`.
 - Tiene una piccola cache nella cartella temporanea del server per non interrogare troppo spesso le fonti.
