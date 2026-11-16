@@ -190,7 +190,7 @@ await test('linee di una città: "Annulla" ferma la ricerca', async () => {
 
 await test('linee di una città dagli orari (senza OpenStreetMap): linee, direzioni e fermate', async () => {
   let overpassCalls = 0;
-  const { w, d } = await boot((u, o, w) => {
+  const { w, d, calls } = await boot((u, o, w) => {
     if (u.includes('photon')) return json(w, { features: [{ geometry: { coordinates: [13.23, 46.06] }, properties: { osm_type: 'R', osm_id: 41, name: 'Udine', extent: [13.15, 46.10, 13.30, 46.02] } }] });
     if (u.includes('/map/stops')) return json(w, [{ stopId: 's1', name: 'Piazza Libertà', lat: 46.06, lon: 13.23 }, { stopId: 's2', name: 'Stazione FS', lat: 46.05, lon: 13.24 }]);
     if (u.includes('/stoptimes')) return json(w, { stopTimes: [
@@ -206,6 +206,9 @@ await test('linee di una città dagli orari (senza OpenStreetMap): linee, direzi
   const chips = [...d.querySelectorAll('#lout .chip[data-g]')].map(c => c.textContent);
   assert.ok(chips.includes('1') && chips.includes('R'), 'il numero del treno non diventa una linea: ' + chips);
   assert.equal(overpassCalls, 0, 'OpenStreetMap non interrogato');
+  const ms = new URL(calls.find(u => u.includes('/map/stops'))).searchParams;
+  const [minLat, minLon] = ms.get('min').split(',').map(Number), [maxLat, maxLon] = ms.get('max').split(',').map(Number);
+  assert.ok(minLat < maxLat && minLon > maxLon, 'min = sud-est, max = nord-ovest come da documentazione MOTIS');
   d.querySelector('#lout .chip[data-g]').click();
   const dirs = d.querySelectorAll('#cityline .ttdir');
   assert.equal(dirs.length, 2);

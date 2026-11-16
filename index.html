@@ -310,7 +310,7 @@ footer a{color:var(--mute)}
 
 <script>
 'use strict';
-const APP_VERSION = '2.2.0', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
+const APP_VERSION = '2.2.1', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -1272,15 +1272,26 @@ async function runLineSearch(text){
   finally{ if (!stale()) btn.disabled = false; }
 }
 /* ---------- Linee ricavate dagli orari (Transitous): fermate della zona → corse in partenza ---------- */
+// MOTIS: min = angolo in basso a destra (sud-est), max = angolo in alto a sinistra (nord-ovest).
+// Per sicurezza, se non arriva nulla si prova anche l'altro ordine.
+let lastStopsDiag = '';
 async function stopsInBox(b, signal){
+  const f = v => v.toFixed(5);
+  const orders = [[`${f(b.minLat)},${f(b.maxLon)}`, `${f(b.maxLat)},${f(b.minLon)}`], [`${f(b.minLat)},${f(b.minLon)}`, `${f(b.maxLat)},${f(b.maxLon)}`]];
+  const errs = [];
   for (const ver of ['v1', planVer, 'v5'].filter((v,i,a) => v && a.indexOf(v) === i)){
-    try{
-      const r = await fetchT(`${API}/api/${ver}/map/stops?min=${b.minLat.toFixed(5)},${b.minLon.toFixed(5)}&max=${b.maxLat.toFixed(5)},${b.maxLon.toFixed(5)}`, {signal}, 15000);
-      if (!r.ok) continue;
-      const list = await r.json();
-      if (Array.isArray(list)) return list.map(x => ({id: x.stopId || x.id, name: x.name, lat: x.lat, lon: x.lon})).filter(x => x.id && x.lat != null);
-    }catch(e){ if (e.name === 'AbortError') throw e; }
+    for (const [mn, mx] of orders){
+      try{
+        const r = await fetchT(`${API}/api/${ver}/map/stops?min=${mn}&max=${mx}`, {signal}, 15000);
+        if (!r.ok){ errs.push(ver + ' HTTP ' + r.status); if (r.status === 404) break; continue; }
+        const list = await r.json();
+        const out = (Array.isArray(list) ? list : []).map(x => ({id: x.stopId || x.id, name: x.name, lat: x.lat, lon: x.lon})).filter(x => x.id && x.lat != null);
+        if (out.length){ lastStopsDiag = `${out.length} fermate`; return out; }
+        errs.push(ver + ' 0 fermate');
+      }catch(e){ if (e.name === 'AbortError') throw e; errs.push(ver + ' ' + (e.message || 'errore')); }
+    }
   }
+  lastStopsDiag = 'fermate non trovate (' + [...new Set(errs)].join(', ') + ')';
   return [];
 }
 // sceglie fermate distribuite su tutta l'area (griglia), non solo quelle del centro
@@ -1339,13 +1350,16 @@ async function variantFromTrip(id, fallback = {}){
 // Linee dagli orari Transitous: corse in zona con quel nome di linea
 async function lineFromTimetable(pq, c){
   const now = new Date(), end = new Date(now.getTime() + 30 * 60e3);
-  const min = `${(c.lat - .12).toFixed(4)},${(c.lon - .16).toFixed(4)}`, max = `${(c.lat + .12).toFixed(4)},${(c.lon + .16).toFixed(4)}`;
+  const S = (c.lat - .12).toFixed(4), N = (c.lat + .12).toFixed(4), W = (c.lon - .16).toFixed(4), E = (c.lon + .16).toFixed(4);
   let segs = null;
-  for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
-    try{
-      const r = await fetchT(`${API}/api/${ver}/map/trips?min=${min}&max=${max}&startTime=${now.toISOString()}&endTime=${end.toISOString()}&zoom=13`, {}, 12000);
-      if (r.ok){ segs = await r.json(); if (!planVer) planVer = ver; break; }
-    }catch(e){}
+  outer: for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
+    for (const [min, max] of [[`${S},${E}`, `${N},${W}`], [`${S},${W}`, `${N},${E}`]]){
+      try{
+        const r = await fetchT(`${API}/api/${ver}/map/trips?min=${min}&max=${max}&startTime=${now.toISOString()}&endTime=${end.toISOString()}&zoom=13`, {}, 12000);
+        if (r.status === 404) continue outer;
+        if (r.ok){ const j = await r.json(); if (Array.isArray(j) && j.length){ segs = j; break outer; } }
+      }catch(e){}
+    }
   }
   const want = new Set(pq.refs.map(r => r.toLowerCase().replace(/\s/g, '')));
   const hit = v => v && want.has(String(v).toLowerCase().replace(/\s/g, ''));
@@ -1836,8 +1850,9 @@ function renderCityFavs(){
   $('#favcities').querySelectorAll('button').forEach(b => b.onclick = () => { $('#cityq').value = b.dataset.c; runCityLines(b.dataset.c); });
 }
 renderCityFavs();
+let ttDiag = '';
 async function fetchCityLines(city, force){
-  let areaId = null, label = city, box = null;
+  let areaId = null, label = city, box = null; ttDiag = '';
   try{
     const r = await fetchT(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`, {}, 8000);
     const f = ((await r.json()).features || []).find(x => x.properties?.osm_type === 'R');
@@ -1856,15 +1871,16 @@ async function fetchCityLines(city, force){
     if (prog) prog.textContent = `Leggo gli orari di ${stops.length} fermate…`;
     const routes = await routesFromStops(stops, {signal: cityCtrl?.signal, onProgress: (d, t) => { const el = $('#cityprog'); if (el) el.textContent = `Leggo gli orari: ${d}/${t} fermate`; }});
     if (routes.length) return {label, src: 'tt', routes: routes.map(r => ({...r, dirs: Object.entries(r.dirs)}))};
-    const el = $('#cityprog'); if (el) el.textContent = 'Negli orari non risultano corse a breve: provo OpenStreetMap…';
-  }
+    ttDiag = stops.length ? `orari: ${stops.length} fermate lette, nessuna corsa a breve` : `orari: ${lastStopsDiag}`;
+    const el = $('#cityprog'); if (el) el.textContent = 'Dagli orari non risultano linee: provo OpenStreetMap…';
+  } else ttDiag = 'comune non trovato (Photon)';
   const sel = areaId ? `area(${areaId})->.a;` : `area["name"="${city.replace(/"/g, '')}"]["boundary"="administrative"]["admin_level"~"^(7|8)$"]->.a;`;
   let els;
   try{
     els = await raceOsm({...(areaId ? {a:'citylines', area: areaId} : {a:'citylines', name: city}), ...(force ? {fresh: 1} : {})},
       `[out:json][timeout:80];${sel}relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;`,
       {signal: cityCtrl?.signal});
-  }catch(e){ if (e.name === 'AbortError') throw e; throw new Error('Elenco linee non disponibile. ' + e.message); }
+  }catch(e){ if (e.name === 'AbortError') throw e; throw new Error('Elenco linee non disponibile. ' + (ttDiag ? 'Dettaglio ' + ttDiag + '. ' : '') + 'OpenStreetMap: ' + e.message); }
   els = compactRels(els);
   return els.length ? {label, els} : null;
 }
