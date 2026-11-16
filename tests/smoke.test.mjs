@@ -145,5 +145,17 @@ await test('pulsante biglietti: etichetta onesta (sito dell\'operatore)', async 
   assert.match(t, /Sito Trenord/); assert.ok(!/Biglietto /.test(t));
 });
 
+await test('pagina informazioni: versione e autore', async () => {
+  const { w, d } = await boot((u, o, w) => json(w, u.includes('version.json') ? { version: '2.1.0' } : []));
+  d.getElementById('infobtn').click();
+  assert.equal(d.getElementById('infoModal').style.display, 'flex');
+  assert.equal(d.getElementById('infoVer').textContent, w.eval('APP_VERSION'));
+  assert.equal(d.getElementById('infoAuthor').textContent, 'Pony10');
+});
+await test('controllo aggiornamenti: confronto versioni', async () => {
+  const { w } = await boot((u, o, w) => json(w, []));
+  assert.ok(w.eval("vNum('2.10.0') > vNum('2.9.9') && vNum('2.1.0') === vNum('2.1.0') && !(vNum('2.0.9') > vNum('2.1.0'))"));
+});
+
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);

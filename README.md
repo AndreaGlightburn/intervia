@@ -32,7 +32,7 @@ App web installabile (PWA) pubblicata su GitHub Pages: https://andreaglightburn.
 Nessuna chiave API è necessaria o presente nel repository.
 
 ## Pubblicazione
-- **App**: ogni push su `main` viene pubblicato da GitHub Pages. Ad ogni modifica di `index.html` aumentare la versione `CACHE` in `sw.js`.
+- **App**: ogni push su `main` viene pubblicato da GitHub Pages. A ogni rilascio aumentare **insieme** la versione in tre punti: `APP_VERSION` in `index.html`, `VERSION` in `sw.js` e `version.json`. All'avvio (e quando si torna nell'app) l'app legge `version.json` senza cache: se trova una versione più nuova svuota le copie salvate e si ricarica una volta.
 - **Server**: caricare `server/api.php` nella cartella `/intervia/` del sito PHP. La cartella `cache/` accanto al file si crea da sola ed è protetta da `.htaccess`. Verifica: `api.php?a=ping`. L'indirizzo del server si cambia nell'app in *Avvisi → ⚙️ Server dati*.
 
 ## Test

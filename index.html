@@ -129,8 +129,9 @@ footer a{color:var(--mute)}
 <body>
 <header>
   <svg viewBox="64 128 384 256" aria-hidden="true"><path d="M96 352 H176 L336 160 H416" fill="none" stroke="#16A34A" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><path d="M96 160 H176 L336 352 H416" fill="none" stroke="#2563EB" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="256" r="46" fill="#fff" stroke="#06B6D4" stroke-width="18"/></svg>
-  <div><h1>Intervia</h1>
+  <div style="flex:1"><h1>Intervia</h1>
   <p>Treni, bus, metro e tram: tutte le soluzioni da A a B</p></div>
+  <button type="button" id="infobtn" aria-label="Informazioni sull'app" style="border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer;flex:0 0 auto">ℹ️</button>
 </header>
 <main>
   <nav class="tabs" id="tabs">
@@ -263,6 +264,37 @@ footer a{color:var(--mute)}
     <div id="lout"></div>
   </div>
 </main>
+<div id="infoModal" role="dialog" aria-modal="true" aria-labelledby="infoTitle" style="position:fixed;inset:0;z-index:1100;background:var(--bg);display:none;flex-direction:column;overflow:auto">
+  <div class="mm-head"><b id="infoTitle">Informazioni</b><button type="button" id="infoClose" aria-label="Chiudi">✕</button></div>
+  <div style="padding:14px;max-width:720px;margin:0 auto;width:100%">
+    <div class="card" style="text-align:center">
+      <svg viewBox="64 128 384 256" style="width:110px;height:74px" aria-hidden="true"><path d="M96 352 H176 L336 160 H416" fill="none" stroke="#16A34A" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><path d="M96 160 H176 L336 352 H416" fill="none" stroke="#2563EB" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="256" r="46" fill="#fff" stroke="#06B6D4" stroke-width="18"/></svg>
+      <h2 style="margin:6px 0 2px">Intervia</h2>
+      <div style="color:var(--mute)">Versione <b id="infoVer"></b> · <span id="infoDate"></span></div>
+      <div style="margin-top:10px;font-size:16px">Ideata e realizzata da <b id="infoAuthor"></b></div>
+      <div id="infoUpd" class="sub" style="margin-top:10px;font-size:13px"></div>
+      <div class="row mt" style="justify-content:center"><button type="button" class="go" id="infoCheck" style="margin:0">↻ Controlla aggiornamenti</button></div>
+    </div>
+    <div class="card" style="font-size:14px">
+      <b>Dati e servizi usati</b>
+      <ul style="padding-left:18px;margin:6px 0">
+        <li>Percorsi, orari, tabelloni e tempo reale: <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (servizio comunitario, dati GTFS aperti)</li>
+        <li>Indirizzi e luoghi: <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a></li>
+        <li>Mappe, linee e fermate: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL), mappe con <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a></li>
+        <li>Treni per numero: ViaggiaTreno (servizio non ufficiale)</li>
+        <li>Infomobilità: RFI · Scioperi: Ministero delle Infrastrutture e dei Trasporti</li>
+      </ul>
+      <div class="sub" style="font-size:12px;color:var(--mute)">Orari, prezzi e biglietti definitivi sono sempre quelli del sito dell'operatore. Le coincidenze indicate non sono garantite.</div>
+    </div>
+    <div class="card" style="font-size:14px">
+      <b>Privacy</b>
+      <div class="sub" style="margin-top:4px">Preferiti, ricerche recenti e dati delle linee restano solo su questo telefono. Le ricerche vengono inviate ai servizi qui sopra per ottenere i risultati. Nessun account, nessuna pubblicità.</div>
+      <div class="row mt"><button type="button" id="infoClear" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer">🗑️ Cancella i dati salvati sul telefono</button></div>
+      <div id="infoClearMsg" class="sub mt" style="font-size:13px"></div>
+    </div>
+    <div class="sub" style="text-align:center;font-size:12px;color:var(--mute)"><a href="https://github.com/AndreaGlightburn/intervia" target="_blank" rel="noopener">Codice sorgente su GitHub</a></div>
+  </div>
+</div>
 <div id="mapModal">
   <div class="mm-head"><b id="mmTitle">Scegli sulla mappa</b><button type="button" id="mmGps">📍 Qui</button><button type="button" id="mmClose">✕</button></div>
   <div id="pickMap"></div>
@@ -278,6 +310,7 @@ footer a{color:var(--mute)}
 
 <script>
 'use strict';
+const APP_VERSION = '2.1.0', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -1782,7 +1815,51 @@ function showCityLine([ref, rels]){
 renderFavs();
 function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}">${esc(t)}</div>`; }
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+/* ---------- Aggiornamento forzato all'avvio ---------- */
+// 1) il service worker scarica sempre la versione più recente (no-store);
+// 2) all'avvio si confronta version.json con la versione in uso e, se diversa, si ricarica una volta.
+const vNum = v => String(v || '0').split('.').map(Number).reduce((a, x) => a * 1000 + (x || 0), 0);
+async function checkUpdate(manual){
+  try{
+    const r = await fetch('version.json?t=' + Date.now(), {cache: 'no-store'});
+    if (!r.ok) throw 0;
+    const v = await r.json();
+    if (vNum(v.version) > vNum(APP_VERSION)){
+      let tried = null; try{ tried = sessionStorage.getItem('intervia.reloadFor'); }catch(e){}
+      if (tried === v.version && !manual) return v;                 // evita ricariche in loop
+      try{ sessionStorage.setItem('intervia.reloadFor', v.version); }catch(e){}
+      try{ const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); }catch(e){}
+      try{ for (const k of await caches.keys()) await caches.delete(k); }catch(e){}
+      location.reload();
+    }
+    return v;
+  }catch(e){ return null; }
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:'){
+  navigator.serviceWorker.register('sw.js', {updateViaCache: 'none'}).then(reg => reg.update()).catch(() => {});
+}
+if (location.protocol === 'https:'){
+  checkUpdate(false);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(false); });   // anche quando si torna nell'app
+}
+
+/* ---------- Pannello informazioni ---------- */
+$('#infoVer').textContent = APP_VERSION;
+$('#infoDate').textContent = new Date(APP_DATE + 'T12:00:00Z').toLocaleDateString('it-IT', {day:'numeric', month:'long', year:'numeric', timeZone:TZ});
+$('#infoAuthor').textContent = APP_AUTHOR;
+const infoOpen = () => { $('#infoModal').style.display = 'flex'; $('#infoClose').focus(); };
+$('#infobtn').onclick = infoOpen;
+$('#infoClose').onclick = () => { $('#infoModal').style.display = 'none'; $('#infobtn').focus(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#infoModal').style.display === 'flex') $('#infoClose').click(); });
+$('#infoCheck').onclick = async () => {
+  $('#infoUpd').textContent = 'Controllo…';
+  const v = await checkUpdate(true);
+  $('#infoUpd').textContent = !v ? 'Impossibile controllare ora (sei offline?).' : vNum(v.version) > vNum(APP_VERSION) ? 'Aggiorno…' : '✅ Stai usando la versione più recente.';
+};
+$('#infoClear').onclick = () => {
+  const keys = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('intervia.')) keys.push(k); } keys.forEach(k => localStorage.removeItem(k)); }catch(e){}
+  $('#infoClearMsg').textContent = `Cancellati ${keys.length} elementi (preferiti, recenti, impostazioni, dati delle linee).`;
+};
 </script>
 </body>
 </html>
