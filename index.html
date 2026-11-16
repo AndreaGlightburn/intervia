@@ -90,9 +90,19 @@ input[type=text],input[type=date],input[type=time],select{width:100%;padding:10p
 .mm-foot .lab{font-size:14px;margin-bottom:8px;min-height:20px}
 .mm-foot .hint{color:var(--mute);font-size:13px}
 .pin{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
-.tabs{display:flex;gap:6px;margin-bottom:12px}
-.tabs button{flex:1;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-weight:600;cursor:pointer}
-.tabs button.on{background:var(--pri);border-color:var(--pri);color:#fff}
+body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:900;display:flex;gap:2px;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px rgba(0,0,0,.06)}
+.tabs button{flex:1;border:0;border-radius:14px;padding:5px 2px;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:1px;background:none;color:var(--mute);cursor:pointer}
+.tabs button span{font-size:21px;line-height:1.2}
+.tabs button.on{background:var(--pri2);color:var(--pri)}
+.al .tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;margin-bottom:6px}
+.tag.red{background:#fde8e8;color:#c0262d}.tag.green{background:#e3f6e8;color:#1a7f37}.tag.orange{background:#fdf0e1;color:#b54708}.tag.blue{background:var(--pri2);color:var(--pri)}.tag.grey{background:var(--bg);color:var(--mute)}
+.al h3{margin:2px 0 4px;font-size:16px}
+.al .meta{font-size:12px;color:var(--mute);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.al .txt{font-size:14px;white-space:pre-line}
+.sec{font-size:13px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.4px;margin:14px 4px 8px}
+ol.stl li.past{opacity:.6}
+ol.stl li.next::before{background:var(--pri)}
 details.stops{margin-top:4px}
 details.stops summary{cursor:pointer;color:var(--pri);font-size:13px;list-style:none}
 details.stops summary::-webkit-details-marker{display:none}
@@ -123,7 +133,13 @@ footer a{color:var(--mute)}
   <p>Treni, bus, metro e tram: tutte le soluzioni da A a B</p></div>
 </header>
 <main>
-  <div class="tabs" id="tabs"><button type="button" class="on" data-t="route">🧭 Percorso</button><button type="button" data-t="lines">🚉 Linee</button><button type="button" data-t="station">🕒 Stazioni</button></div>
+  <nav class="tabs" id="tabs">
+    <button type="button" class="on" data-t="route"><span>🧭</span>Percorso</button>
+    <button type="button" data-t="station"><span>🕒</span>Stazioni</button>
+    <button type="button" data-t="train"><span>🚆</span>Treni</button>
+    <button type="button" data-t="lines"><span>🚉</span>Linee</button>
+    <button type="button" data-t="alerts"><span>📢</span>Avvisi</button>
+  </nav>
   <div id="tab-route">
   <form class="card" id="f" autocomplete="off">
     <div class="place" id="p-from">
@@ -193,6 +209,35 @@ footer a{color:var(--mute)}
       <div class="recent" id="strecent"></div>
     </div>
     <div id="stout"></div>
+  </div>
+  <div id="tab-train" hidden>
+    <form class="card" id="tf" autocomplete="off">
+      <label for="trainq">Numero del treno</label>
+      <div class="row">
+        <input type="text" id="trainq" inputmode="numeric" placeholder="es. 9660, 24113">
+        <button class="go" type="submit" style="flex:0 0 auto;width:auto;margin:0;padding:10px 16px">Cerca</button>
+      </div>
+      <div class="sub" style="font-size:12px;color:var(--mute);margin-top:6px">Il numero è sul biglietto o sul tabellone. Dati in tempo reale da ViaggiaTreno.</div>
+      <div class="recent" id="trrecent"></div>
+    </form>
+    <div id="tout"></div>
+  </div>
+  <div id="tab-alerts" hidden>
+    <div class="seg" id="almode" style="margin-bottom:10px"><button type="button" class="on" data-v="info">🚦 Infomobilità</button><button type="button" data-v="strikes">📣 Scioperi</button></div>
+    <div class="card">
+      <div class="row">
+        <div><label for="alreg">Regione</label><select id="alreg"><option value="">Tutta Italia</option></select></div>
+        <div id="alprovbox" hidden><label for="alprov">Provincia o città</label><input type="text" id="alprov" placeholder="es. Milano"></div>
+      </div>
+      <div class="mt" id="alsectbox" hidden><label for="alsect">Settore</label>
+        <select id="alsect"><option value="">Tutti i settori</option><option value="ferrov">Ferroviario</option><option value="locale|tpl|autoferro">Trasporto pubblico locale</option><option value="aere|aeroport">Aereo</option><option value="maritt|nav|porto">Marittimo</option></select></div>
+    </div>
+    <div id="aout"></div>
+    <details class="card" style="font-size:13px"><summary style="cursor:pointer">⚙️ Server dati per Treni e Avvisi</summary>
+      <div class="mt"><label for="bridgeurl">Indirizzo del file api.php</label><input type="text" id="bridgeurl"></div>
+      <div class="row mt"><button type="button" class="go" id="bridgesave" style="margin:0">Salva e prova</button></div>
+      <div id="bridgemsg" class="sub mt"></div>
+    </details>
   </div>
   <div id="tab-lines" hidden>
     <form class="card" id="lf" autocomplete="off">
@@ -297,6 +342,7 @@ function liveLinks(l, g){
     const n = trainNumber(l);
     if (/trenord/i.test(ag)) out.push({label: n ? `Treno ${n} in tempo reale (Trenord)` : 'Circolazione Trenord', url: 'https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/' + (n ? '?train=' + n : '')});
     out.push({label: 'ViaggiaTreno' + (n ? ` (treno ${n})` : ''), url: 'http://www.viaggiatreno.it/infomobilita/index.jsp'});
+    if (n) out.unshift({label: `Segui il treno ${n}`, url: '#', train: n});
     if (/trenitalia/i.test(ag)) out.push({label: 'Infomobilità Trenitalia', url: 'https://www.trenitalia.com/it/informazioni/Infomobilita/notizie-infomobilita.html'});
   } else if (/\batm\b|azienda trasporti milanesi/i.test(ag)){
     out.push({label: 'Avvisi ATM', url: 'https://www.atm.it/'});
@@ -746,7 +792,7 @@ function legHtml(l, ver){
   const sched = (x, s) => s && x && x !== s ? `<small>prev. ${fmtT(s)}</small>` : '';
   const track = (p) => p?.track ? ` · bin. ${esc(p.track)}${p.scheduledTrack && p.scheduledTrack !== p.track ? ` <span class="late">(era ${esc(p.scheduledTrack)})</span>` : ''}` : '';
   const stops = (l.intermediateStops || []).length;
-  const live = liveLinks(l, g).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">📡 ${esc(x.label)}</a>`).join('');
+  const live = liveLinks(l, g).map(x => x.train ? `<a href="#" data-train="${esc(x.train)}">🚆 ${esc(x.label)}</a>` : `<a href="${esc(x.url)}" target="_blank" rel="noopener">📡 ${esc(x.label)}</a>`).join('');
   const legKey = 'L' + (++legSeq); legStore[legKey] = l;
   const name = l.displayName || l.routeShortName || NAME[g];
   const tix = ticketLinks(l).map(t => `<a class="${t.main ? 'main' : ''}" href="${esc(t.url)}" target="_blank" rel="noopener">🎫 ${esc(t.label)}</a>`).join('');
@@ -819,12 +865,16 @@ async function overpass(q){
   return r.json();
 }
 let lineCenter = null;
+function showTab(t, fromClick){
+  ['route','lines','station','train','alerts'].forEach(x => { const el = $('#tab-' + x); if (el) el.hidden = x !== t; });
+  $('#tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  if (t === 'alerts' && !alertsLoaded) loadAlerts();
+  window.scrollTo(0, 0);
+}
 $('#tabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   $('#tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-  $('#tab-route').hidden = b.dataset.t !== 'route';
-  $('#tab-lines').hidden = b.dataset.t !== 'lines';
-  $('#tab-station').hidden = b.dataset.t !== 'station';
+  showTab(b.dataset.t, true);
 });
 $('#lf').addEventListener('submit', async e => {
   e.preventDefault();
@@ -1006,6 +1056,172 @@ async function loadBoard(){
     }).join('')}</div>` : '<div class="msg">Nessun passaggio nelle prossime ore.</div>');
   $('#strefresh').onclick = e => { e.preventDefault(); loadBoard(); };
   stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(); }, 60000);
+}
+
+/* ---------- Ponte dati (api.php su hosting PHP) ---------- */
+const BRIDGE_DEFAULT = 'https://www.iz2oii.eu/intervia/api.php';
+const bridge = () => store('intervia.bridge') || BRIDGE_DEFAULT;
+async function bridgeGet(params){
+  let r;
+  try{ r = await fetch(bridge() + '?' + new URLSearchParams(params)); }
+  catch(e){ throw new Error('Server dati non raggiungibile (' + bridge() + '). Verifica di aver caricato api.php e l\'indirizzo in Avvisi → ⚙️ Server dati.'); }
+  let j; try{ j = await r.json(); }catch(e){ throw new Error('Il server dati non ha risposto correttamente (' + r.status + '). Controlla che api.php sia caricato e che il sito supporti PHP.'); }
+  if (!j.ok) throw new Error(j.error || 'Errore dal server dati');
+  return j;
+}
+$('#bridgeurl').value = bridge();
+$('#bridgesave').onclick = async () => {
+  const v = $('#bridgeurl').value.trim();
+  store('intervia.bridge', v || BRIDGE_DEFAULT);
+  $('#bridgemsg').textContent = 'Provo…';
+  try{ const j = await bridgeGet({a:'ping'}); $('#bridgemsg').textContent = `✅ Funziona (PHP ${j.php}${j.curl ? ', cURL attivo' : ', senza cURL'})`; alertsLoaded = false; }
+  catch(e){ $('#bridgemsg').textContent = '❌ ' + e.message; }
+};
+
+/* ---------- Treni per numero ---------- */
+let trTimer = null, trCur = null;
+const msT = v => v ? fmtT(new Date(+v).toISOString()) : '';
+function renderTrRecent(){
+  const r = store('intervia.trains') || [];
+  $('#trrecent').innerHTML = r.map(n => `<button type="button" data-n="${esc(n)}">🚆 ${esc(n)}</button>`).join('');
+}
+$('#trrecent').addEventListener('click', e => { const b = e.target.closest('button'); if (b){ $('#trainq').value = b.dataset.n; openTrain(b.dataset.n); } });
+$('#tf').addEventListener('submit', e => { e.preventDefault(); const n = $('#trainq').value.replace(/\D/g, ''); if (n) openTrain(n); });
+renderTrRecent();
+async function openTrain(n, o, d){
+  clearInterval(trTimer);
+  const out = $('#tout'); out.innerHTML = '<div class="msg">Cerco il treno…</div>';
+  try{
+    const j = await bridgeGet(o ? {a:'train', n, o, d} : {a:'train', n});
+    if (j.matches){
+      if (!j.matches.length){ out.innerHTML = `<div class="msg">Nessun treno ${esc(n)} trovato oggi.</div>`; return; }
+      out.innerHTML = `<div class="msg" style="margin-bottom:10px">Più treni con il numero ${esc(n)}: scegli quello giusto</div>` +
+        j.matches.map(m => `<button type="button" class="card" style="width:100%;text-align:left;cursor:pointer" data-o="${esc(m.o)}" data-d="${esc(m.d)}">🚆 ${esc(m.label)}</button>`).join('');
+      out.querySelectorAll('[data-o]').forEach(b => b.onclick = () => openTrain(n, b.dataset.o, b.dataset.d));
+      return;
+    }
+    let r = (store('intervia.trains') || []).filter(x => x !== n); r.unshift(n); store('intervia.trains', r.slice(0, 8)); renderTrRecent();
+    trCur = {n, o: j.train.o, d: j.train.d};
+    renderTrain(j.train);
+    trTimer = setInterval(() => { if (!$('#tab-train').hidden && !document.hidden && trCur) openTrain(trCur.n, trCur.o, trCur.d); }, 60000);
+  }catch(err){ out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+}
+function renderTrain(t){
+  const st = t.stops || [];
+  let lastIdx = -1; st.forEach((s, i) => { if (s.depReal || s.arrReal) lastIdx = i; });
+  const del = t.delay;
+  const status = t.cancelled ? '<span class="tag red">Soppresso</span>'
+    : lastIdx < 0 ? '<span class="tag grey">Non ancora partito</span>'
+    : del > 0 ? `<span class="tag orange">Ritardo ${del} min</span>`
+    : del < 0 ? `<span class="tag green">Anticipo ${-del} min</span>` : '<span class="tag green">In orario</span>';
+  const rows = st.map((s, i) => {
+    const sched = s.depSched || s.arrSched, real = s.depReal || s.arrReal;
+    const d = s.depReal ? s.delayDep : s.arrReal ? s.delayArr : null;
+    const cls = s.cancelled ? 'off' : i <= lastIdx ? 'past' : (i === lastIdx + 1 ? 'next' : '');
+    return `<li class="${cls}"><span class="tm">${msT(sched)}</span><span>${s.type === 'P' || s.type === 'A' ? '<b>' + esc(s.name) + '</b>' : esc(s.name)}${s.track ? ` <span style="color:var(--mute)">bin. ${esc(s.track)}</span>${s.trackSched && s.trackSched !== s.track ? ` <span class="late">(era ${esc(s.trackSched)})</span>` : ''}` : ''}</span>
+      ${real ? `<span class="${d > 0 ? 'late' : 'ontime'}">${s.depReal ? 'partito' : 'arrivato'} ${msT(real)}${d > 0 ? ` (+${d}′)` : ''}</span>` : ''}${s.cancelled ? '<span class="canc">fermata soppressa</span>' : ''}</li>`;
+  }).join('');
+  $('#tout').innerHTML = `<div class="card al">${status}
+    <h3>🚆 ${esc(t.name)}</h3>
+    <div class="txt">${esc(t.origin)} → ${esc(t.destination)}</div>
+    ${t.lastStation && t.lastStation !== '--' ? `<div class="meta">📍 Ultimo rilevamento: ${esc(t.lastStation)} ${t.lastTime ? 'alle ' + msT(t.lastTime) : ''}</div>` : ''}
+    ${t.notes ? `<div class="meta">${esc(t.notes)}</div>` : ''}
+    <div class="live"><a href="#" id="trref">↻ Aggiorna</a><a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/?train=${esc(t.number)}" target="_blank" rel="noopener">📡 Pagina Trenord</a><a href="http://www.viaggiatreno.it/infomobilita/index.jsp" target="_blank" rel="noopener">📡 ViaggiaTreno</a></div>
+  </div>
+  <div class="card"><ol class="stl">${rows}</ol><div class="sub" style="font-size:12px">Si aggiorna da solo ogni minuto.</div></div>`;
+  $('#trref').onclick = e => { e.preventDefault(); openTrain(trCur.n, trCur.o, trCur.d); };
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-train]'); if (!a) return;
+  e.preventDefault(); e.stopPropagation();
+  showTab('train'); $('#trainq').value = a.dataset.train; openTrain(a.dataset.train);
+}, true);
+
+/* ---------- Avvisi: infomobilità e scioperi ---------- */
+const REGIONI = ['Abruzzo','Basilicata','Calabria','Campania','Emilia-Romagna','Friuli-Venezia Giulia','Lazio','Liguria','Lombardia','Marche','Molise','Piemonte','Puglia','Sardegna','Sicilia','Toscana','Trentino-Alto Adige','Umbria',"Valle d'Aosta",'Veneto'];
+$('#alreg').innerHTML += REGIONI.map(r => `<option>${esc(r)}</option>`).join('');
+let alMode = 'info', alertsLoaded = false, alData = {};
+(function(){ const p = store('intervia.alerts') || {}; if (p.reg) $('#alreg').value = p.reg; if (p.prov) $('#alprov').value = p.prov; })();
+$('#almode').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  alMode = b.dataset.v;
+  $('#almode').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  $('#alprovbox').hidden = $('#alsectbox').hidden = alMode !== 'strikes';
+  loadAlerts();
+});
+['alreg','alprov','alsect'].forEach(id => $('#' + id).addEventListener('input', () => {
+  store('intervia.alerts', {reg: $('#alreg').value, prov: $('#alprov').value});
+  renderAlerts();
+}));
+async function loadAlerts(){
+  alertsLoaded = true;
+  const out = $('#aout'); out.innerHTML = '<div class="msg">Carico gli avvisi…</div>';
+  try{
+    if (!alData[alMode]) alData[alMode] = await bridgeGet({a: alMode === 'info' ? 'info' : 'strikes'});
+    renderAlerts();
+  }catch(err){ alertsLoaded = false; out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+}
+const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['’-]/g, ' ');
+function infoTag(t){
+  const x = norm(t);
+  if (/sospes|interrott|chius/.test(x)) return ['red', '⛔ Circolazione sospesa'];
+  if (/regolare|ripres|riattivat|ripristinat|terminat/.test(x)) return ['green', '✅ Tornata regolare'];
+  if (/rallent|ritard|limitazion|deviaz|cancellaz/.test(x)) return ['orange', '⚠️ Rallentamenti'];
+  return ['blue', 'ℹ️ Avviso'];
+}
+function whenTxt(iso){
+  if (!iso) return '';
+  const d = new Date(iso), today = new Date(); const y = new Date(); y.setDate(today.getDate() - 1);
+  const t = d.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+  if (d.toDateString() === today.toDateString()) return 'Oggi, ' + t;
+  if (d.toDateString() === y.toDateString()) return 'Ieri, ' + t;
+  return fmtD(iso) + ', ' + t;
+}
+function alertCard(it, live){
+  const [c, lab] = live ? infoTag(it.title + ' ' + it.text) : ['grey', '🛠 Avviso programmato'];
+  const long = it.text && it.text.length > 280;
+  return `<div class="card al"><span class="tag ${c}">${lab}</span><span style="float:right;font-size:12px;color:var(--mute)">🕒 ${esc(whenTxt(it.date))}</span>
+    <h3>${esc(it.title)}</h3>
+    ${long ? `<details><summary class="txt" style="cursor:pointer">${esc(it.text.slice(0, 240))}… <span style="color:var(--pri)">altro</span></summary><div class="txt">${esc(it.text)}</div></details>` : `<div class="txt">${esc(it.text)}</div>`}
+    <div class="meta">${(it.categories || []).length ? '📍 ' + esc(it.categories.join(', ')) : ''}${it.link ? ` <a href="${esc(it.link)}" target="_blank" rel="noopener">Dettagli RFI</a>` : ''}</div></div>`;
+}
+function strikeFields(r){
+  const g = re => { for (const k of Object.keys(r)) if (re.test(norm(k))) return r[k]; return ''; };
+  return {
+    start: g(/^inizio|data inizio/), end: g(/^fine|data fine/), unions: g(/sindacat/), sector: g(/settore/),
+    category: g(/categoria/), relevance: g(/rilevanza/), note: g(/^note|modalita/), region: g(/^regione/), prov: g(/^provincia/), status: g(/^stato/)
+  };
+}
+function renderAlerts(){
+  const out = $('#aout'), reg = norm($('#alreg').value), data = alData[alMode];
+  if (!data) return;
+  if (alMode === 'info'){
+    const f = it => !reg || norm(it.title + ' ' + it.text + ' ' + (it.categories || []).join(' ')).includes(reg);
+    const live = (data.live || []).filter(f), notes = (data.notices || []).filter(f);
+    out.innerHTML = `<div class="sec">In tempo reale · RFI</div>` + (live.length ? live.map(x => alertCard(x, true)).join('') : '<div class="msg">Nessuna segnalazione in corso' + (reg ? ' per questa regione' : '') + '.</div>') +
+      `<div class="sec">Lavori e modifiche programmate</div>` + (notes.length ? notes.slice(0, 40).map(x => alertCard(x, false)).join('') : '<div class="msg">Nessun avviso programmato.</div>');
+    return;
+  }
+  const prov = norm($('#alprov').value), sect = $('#alsect').value;
+  let items = data.format === 'table' ? data.rows.map(strikeFields) : (data.items || []).map(it => ({title: it.title, text: it.text, start: it.date}));
+  items = items.filter(x => {
+    const all = norm(Object.values(x).join(' '));
+    const national = /nazional/.test(norm(x.relevance)) || /nazional/.test(all) && !x.region;
+    if (reg && !national && !all.includes(reg)) return false;
+    if (prov && !national && !all.includes(prov)) return false;
+    if (sect && !new RegExp(sect).test(all)) return false;
+    return true;
+  });
+  if (!items.length){ out.innerHTML = '<div class="msg">Nessuno sciopero in programma con questi filtri.</div>'; return; }
+  out.innerHTML = `<div class="sec">${items.length} scioperi in programma · fonte MIT</div>` + items.slice(0, 80).map(x => {
+    if (x.title !== undefined) return `<div class="card al"><span class="tag orange">📣 Sciopero</span><h3>${esc(x.title)}</h3><div class="txt">${esc(x.text || '')}</div></div>`;
+    const nat = /nazional/.test(norm(x.relevance));
+    return `<div class="card al">${x.status && /revoc|differit|sospes/.test(norm(x.status)) ? `<span class="tag grey">${esc(x.status)}</span> ` : ''}<span class="tag ${nat ? 'red' : 'orange'}">${esc(x.relevance || 'Sciopero')}</span>
+      <h3>${esc(x.start)}${x.end && x.end !== x.start ? ' → ' + esc(x.end) : ''}</h3>
+      <div class="txt">${esc([x.sector, x.category].filter(Boolean).join(' · '))}</div>
+      ${x.note ? `<div class="txt" style="margin-top:4px">🕒 ${esc(x.note)}</div>` : ''}
+      <div class="meta">${x.region || x.prov ? `<span>📍 ${esc([x.prov, x.region].filter(Boolean).join(', '))}</span>` : '<span>📍 Italia</span>'}${x.unions ? `<span>👥 ${esc(x.unions)}</span>` : ''}</div></div>`;
+  }).join('');
 }
 
 function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}">${esc(t)}</div>`; }
