@@ -31,7 +31,7 @@ function out($data, $code = 200) { http_response_code($code); echo json_encode($
 function fail($msg, $code = 502) { out(['ok' => false, 'error' => $msg], $code); }
 
 // Download con cache su file (evita di interrogare i siti a ogni richiesta)
-function fetch_url($url, $ttl) {
+function fetch_url($url, $ttl, $timeout = 15) {
     global $LAST_ERR;
     $dir = sys_get_temp_dir() . '/intervia_cache';
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
@@ -40,7 +40,7 @@ function fetch_url($url, $ttl) {
     $body = false; $code = 0;
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
-        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15,
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => $timeout,
             CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '']);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json, text/plain, */*', 'Referer: https://www.viaggiatreno.it/infomobilita/index.jsp']);
         $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -104,7 +104,7 @@ function vt($path, $ttl) {
 $a = $_GET['a'] ?? '';
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.1']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.2']);
 if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
     $res = [];
     foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
@@ -207,6 +207,45 @@ if ($a === 'strikes') {
     }
     if (!$rows) fail('Formato del calendario scioperi cambiato: avvisa lo sviluppatore');
     out(['ok' => true, 'format' => 'table', 'rows' => $rows]);
+}
+
+/* ---------- Linee da OpenStreetMap (Overpass), con cache di un giorno ---------- */
+function overpass_q($ql) {
+    global $LAST_ERR;
+    $errs = [];
+    foreach (['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'] as $srv) {
+        $LAST_ERR = '';
+        $r = fetch_url($srv . '?data=' . rawurlencode($ql), 86400, 55);
+        if ($r !== false) { $j = json_decode($r, true); if (is_array($j) && isset($j['elements'])) return $j; }
+        $errs[] = parse_url($srv, PHP_URL_HOST) . ': ' . ($LAST_ERR ?: 'risposta non valida');
+    }
+    $LAST_ERR = implode(' · ', $errs);
+    return false;
+}
+if ($a === 'lines') {
+    $refs = [];
+    foreach (explode(',', $_GET['refs'] ?? '') as $r) {
+        $r = trim($r);
+        if ($r !== '' && preg_match('/^[\p{L}\p{N} \/.\-]{1,12}$/u', $r)) $refs[] = $r;
+    }
+    $refs = array_slice(array_unique($refs), 0, 8);
+    $bb = array_map('floatval', explode(',', $_GET['bbox'] ?? ''));
+    if (!$refs || count($bb) !== 4) fail('Parametri non validi', 400);
+    // arrotonda il riquadro per riusare la cache
+    $bb = array_map(fn($v) => round($v, 1), $bb);
+    $bbs = implode(',', $bb);
+    $parts = '';
+    foreach ($refs as $r) $parts .= 'relation["type"="route"]["ref"="' . str_replace('"', '', $r) . '"](' . $bbs . ');';
+    $j = overpass_q('[out:json][timeout:50];(' . $parts . ');out tags center;');
+    if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
+    out(['ok' => true, 'elements' => $j['elements']]);
+}
+if ($a === 'line') {
+    $id = preg_replace('/\D/', '', $_GET['id'] ?? '');
+    if ($id === '') fail('Parametri non validi', 400);
+    $j = overpass_q('[out:json][timeout:50];relation(' . $id . ')->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;');
+    if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
+    out(['ok' => true, 'elements' => $j['elements']]);
 }
 
 fail('Azione non valida', 400);

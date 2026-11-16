@@ -874,6 +874,16 @@ async function overpass(q){
   }
   throw new Error(last);
 }
+async function osmLines(refs, bb){
+  try{ const j = await withTimeout(bridgeGet({a:'lines', refs: refs.join(','), bbox: bb}), 60000); return {elements: j.elements}; }
+  catch(e){ console.warn('ponte linee', e); }
+  return overpass(`[out:json][timeout:20];(${refs.map(r => `relation["type"="route"]["ref"="${r.replace(/"/g, '')}"](${bb});`).join('')});out tags center;`);
+}
+async function osmLine(id){
+  try{ const j = await withTimeout(bridgeGet({a:'line', id}), 60000); return {elements: j.elements}; }
+  catch(e){ console.warn('ponte linea', e); }
+  return overpass(`[out:json][timeout:25];relation(${id})->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;`);
+}
 // "metro 4 milano" → {refs:[M4,4], modes:[subway], place:"milano"}
 function parseLineQuery(q){
   const STOP = new Set(['linea','line','la','il','di','a','da','in','per','del','della','numero','n','n.']);
@@ -928,9 +938,12 @@ async function runLineSearch(text){
     }
     lineCenter = c;
     const favKey = 'line:' + text.toLowerCase();
-    const head = (n, src) => `<div class="msg" style="margin-bottom:12px">${n} ${src === 'live' ? 'direzioni' : 'percorsi'} per la linea "${esc(ref)}"${src === 'live' ? ' (corse delle prossime ore)' : ' (ogni direzione è un percorso a parte)'}
+    const head = (n, src) => `<div class="msg" style="margin-bottom:12px">${n} ${src === 'live' ? 'direzioni' : 'percorsi'} per la linea "${esc(ref)}"${src === 'live' ? ' (prossime corse)' : ' (ogni direzione è un percorso a parte)'}
       <button type="button" class="favbtn" data-fav="${esc(favKey)}" data-favtype="line" data-favlabel="${esc(text)}" style="float:right">${isFav(favKey) ? '★ Preferita' : '☆ Salva'}</button></div>`;
     // 1) dagli orari (Transitous): corse della linea in zona nelle prossime ore
+    const bb = `${(c.lat - .45).toFixed(4)},${(c.lon - .6).toFixed(4)},${(c.lat + .45).toFixed(4)},${(c.lon + .6).toFixed(4)}`;
+    const osmP = osmLines(pq.refs, bb);   // parte subito, in parallelo
+    osmP.catch(() => {});
     const live = await lineFromTimetable(pq, c).catch(() => []);
     if (live.length){
       out.innerHTML = head(live.length, 'live') + live.map((v, i) => `<div class="card it lvar" data-i="${i}">
@@ -946,10 +959,8 @@ async function runLineSearch(text){
       bindFavButtons(out); return;
     }
     // 2) in alternativa da OpenStreetMap
-    out.innerHTML = '<div class="msg">Nessuna corsa a breve negli orari: cerco la linea su OpenStreetMap…</div>';
-    const bb = `${(c.lat - .45).toFixed(4)},${(c.lon - .6).toFixed(4)},${(c.lat + .45).toFixed(4)},${(c.lon + .6).toFixed(4)}`;
-    const q = `[out:json][timeout:20];(${pq.refs.map(r => `relation["type"="route"]["ref"="${r.replace(/"/g, '')}"](${bb});`).join('')});out tags center;`;
-    const data = await overpass(q);
+    out.innerHTML = '<div class="msg">Cerco la linea su OpenStreetMap… la prima volta può richiedere fino a un minuto, poi è immediata.</div>';
+    const data = await osmP;
     const OK = ['train','light_rail','subway','tram','bus','trolleybus','ferry','monorail','coach'];
     const km = x => x.center ? Math.hypot((x.center.lat - c.lat) * 111, (x.center.lon - c.lon) * 78) : 999;
     const rels = (data.elements || []).filter(x => OK.includes(x.tags?.route) && (!pq.modes || pq.modes.includes(x.tags.route)))
@@ -980,12 +991,12 @@ function withTimeout(promise, ms){
 }
 // Linee dagli orari Transitous: corse in zona nelle prossime 2 ore con quel nome di linea
 async function lineFromTimetable(pq, c){
-  const now = new Date(), end = new Date(now.getTime() + 2 * 3600e3);
-  const min = `${(c.lat - .3).toFixed(4)},${(c.lon - .4).toFixed(4)}`, max = `${(c.lat + .3).toFixed(4)},${(c.lon + .4).toFixed(4)}`;
+  const now = new Date(), end = new Date(now.getTime() + 30 * 60e3);
+  const min = `${(c.lat - .12).toFixed(4)},${(c.lon - .16).toFixed(4)}`, max = `${(c.lat + .12).toFixed(4)},${(c.lon + .16).toFixed(4)}`;
   let segs = null;
   for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
     try{
-      const r = await withTimeout(fetch(`${API}/api/${ver}/map/trips?min=${min}&max=${max}&startTime=${now.toISOString()}&endTime=${end.toISOString()}&zoom=11`), 15000);
+      const r = await withTimeout(fetch(`${API}/api/${ver}/map/trips?min=${min}&max=${max}&startTime=${now.toISOString()}&endTime=${end.toISOString()}&zoom=13`), 12000);
       if (r.ok){ segs = await r.json(); if (!planVer) planVer = ver; break; }
     }catch(e){}
   }
@@ -1055,7 +1066,7 @@ async function loadLine(cd){
   det.dataset.done = '1'; det.innerHTML = '<div class="sub">Carico le fermate…</div>';
   try{
     const id = cd.dataset.id;
-    const data = await overpass(`[out:json][timeout:25];relation(${id})->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;`);
+    const data = await osmLine(id);
     const rel = data.elements.find(x => x.type === 'relation');
     const byId = {}; data.elements.forEach(x => { if (x.type !== 'relation') byId[x.type + x.id] = x; });
     const pick = rolePrefix => (rel.members || []).filter(m => m.role.startsWith(rolePrefix)).map(m => {
