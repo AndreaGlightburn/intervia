@@ -168,5 +168,33 @@ await test('codici HTTP classificati', () => {
   assert.equal(ctx.httpKind(429), 'busy'); assert.equal(ctx.httpKind(503), 'unavailable'); assert.equal(ctx.httpKind(400), 'bad');
 });
 
+console.log('Rilascio 2.4.1');
+await test('M7: "???" non è un nome di linea', () => { assert.equal(ctx.parseLineQuery('???'), null); assert.ok(ctx.parseLineQuery('S9')); });
+await test('A5: contrasto ≥ 4,5:1 nel tema chiaro e scuro', () => {
+  const lum = h => { const c = h.match(/\w\w/g).map(x => parseInt(x, 16) / 255).map(v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+  const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
+  const dark = css.match(/prefers-color-scheme:dark\)\{:root\{([^}]*)\}/)[1];
+  const v = (block, k) => block.match(new RegExp('--' + k + ':(#[0-9a-fA-F]{6})'))[1];
+  const light = css.match(/:root\{([^}]*)\}/)[1];
+  assert.ok(ratio('#ffffff', v(dark, 'pri')) >= 4.5, 'pulsanti scuri');
+  assert.ok(ratio(v(dark, 'link'), v(dark, 'card')) >= 4.5 && ratio(v(dark, 'link'), v(dark, 'pri2')) >= 4.5, 'link scuri');
+  assert.ok(ratio(v(light, 'link'), '#e8f0f9') >= 4.5 && ratio(v(light, 'link'), '#ffffff') >= 4.5, 'link chiari');
+  assert.ok(/a\{color:var\(--link\)\}/.test(css), 'i link usano --link');
+  assert.ok(/name="color-scheme"/.test(html));
+});
+await test('M3: il service worker non salva version.json né richieste con parametri', async () => {
+  const swSrc = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const puts = [], handlers = {};
+  const sctx = { self: { addEventListener: (t, f) => handlers[t] = f, skipWaiting() {}, clients: { claim() {} } }, location: { origin: 'https://x.io' }, URL, Request,
+    caches: { open: async () => ({ put: (req) => puts.push(req.url), addAll: async () => {} }), keys: async () => [], match: async () => null },
+    fetch: async () => new Response('ok', { status: 200 }) };
+  vm.createContext(sctx); vm.runInContext(swSrc, sctx);
+  for (const u of ['https://x.io/intervia/version.json?t=1', 'https://x.io/intervia/version.json?t=2', 'https://x.io/intervia/index.html']) {
+    let p; handlers.fetch({ request: new Request(u), respondWith: x => p = x }); await p; await new Promise(r => setTimeout(r, 5));
+  }
+  assert.deepEqual(puts, ['https://x.io/intervia/index.html']);
+});
+
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B2545">
+<meta name="color-scheme" content="light dark">
 <title>Intervia – mezzi pubblici da A a B</title>
 <meta name="description" content="Treni, bus, metro e tram: tutte le soluzioni da A a B">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,8 +15,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
-:root{--bg:#f4f6f9;--card:#fff;--ink:#1b2430;--mute:#667085;--pri:#2563EB;--navy:#0B2545;--pri2:#e8f0f9;--ok:#1a7f37;--warn:#b54708;--bad:#c0262d;--line:#e3e7ee;--r:14px}
-@media (prefers-color-scheme:dark){:root{--bg:#0f141a;--card:#18202a;--ink:#e8edf3;--mute:#98a2b3;--pri:#5aa2e6;--pri2:#1d2a39;--line:#2a3442}}
+:root{--link:#1D4ED8;--bg:#f4f6f9;--card:#fff;--ink:#1b2430;--mute:#667085;--pri:#2563EB;--navy:#0B2545;--pri2:#e8f0f9;--ok:#1a7f37;--warn:#b54708;--bad:#c0262d;--line:#e3e7ee;--r:14px}
+@media (prefers-color-scheme:dark){:root{--bg:#0f141a;--card:#18202a;--ink:#e8edf3;--mute:#98a2b3;--pri:#2563EB;--link:#8AB8F5;--pri2:#1d2a39;--line:#2a3442}}
+a{color:var(--link)}
 *{box-sizing:border-box}
 body{margin:0;font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 header{background:var(--navy);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px}
@@ -39,13 +41,13 @@ input[type=text],input[type=date],input[type=time],select{width:100%;padding:10p
 .sugg div:hover,.sugg div.act{background:var(--pri2)}
 .sugg small{display:block;color:var(--mute)}
 .swap{display:flex;justify-content:flex-end;margin:-6px 0 4px}
-.swap button{border:0;background:none;color:var(--pri);cursor:pointer;font-size:13px}
+.swap button{border:0;background:none;color:var(--link);cursor:pointer;font-size:13px}
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .seg button{flex:1;border:0;padding:9px;background:var(--bg);cursor:pointer}
 .seg button.on{background:var(--pri);color:#fff}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);border-radius:999px;padding:6px 11px;background:var(--bg);cursor:pointer;user-select:none;font-size:14px}
-.chip.on{background:var(--pri2);border-color:var(--pri);color:var(--pri);font-weight:600}
+.chip.on{background:var(--pri2);border-color:var(--pri);color:var(--link);font-weight:600}
 .go{width:100%;padding:13px;border:0;border-radius:12px;background:var(--pri);color:#fff;font-weight:700;font-size:16px;cursor:pointer;margin-top:4px}
 .go:disabled{opacity:.6}
 .mt{margin-top:10px}
@@ -57,7 +59,7 @@ input[type=text],input[type=date],input[type=time],select{width:100%;padding:10p
 .it .times{font-size:20px;font-weight:700}
 .it .dur{color:var(--mute);font-size:13px;text-align:right}
 .it .modes{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px;font-size:13px}
-.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-weight:600;font-size:12px;background:var(--pri2);color:var(--pri)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-weight:600;font-size:12px;background:var(--pri2);color:var(--link)}
 .arrow{color:var(--mute)}
 .late{color:var(--warn);font-weight:600}
 .ontime{color:var(--ok)}
@@ -73,7 +75,7 @@ input[type=text],input[type=date],input[type=time],select{width:100%;padding:10p
 .leg .sub{color:var(--mute);font-size:13px}
 .leg.walk .what{color:var(--mute)}
 .tix{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.tix a{font-size:13px;text-decoration:none;padding:5px 9px;border-radius:8px;border:1px solid var(--pri);color:var(--pri)}
+.tix a{font-size:13px;text-decoration:none;padding:5px 9px;border-radius:8px;border:1px solid var(--pri);color:var(--link)}
 .tix a.main{background:var(--pri);color:#fff}
 .pager{display:flex;gap:8px}
 .pager button{flex:1;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer}
@@ -94,9 +96,9 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:900;display:flex;gap:2px;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px rgba(0,0,0,.06)}
 .tabs button{flex:1;border:0;border-radius:14px;padding:5px 2px;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:1px;background:none;color:var(--mute);cursor:pointer}
 .tabs button span{font-size:21px;line-height:1.2}
-.tabs button.on{background:var(--pri2);color:var(--pri)}
+.tabs button.on{background:var(--pri2);color:var(--link)}
 .al .tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;margin-bottom:6px}
-.tag.red{background:#fde8e8;color:#c0262d}.tag.green{background:#e3f6e8;color:#1a7f37}.tag.orange{background:#fdf0e1;color:#b54708}.tag.blue{background:var(--pri2);color:var(--pri)}.tag.grey{background:var(--bg);color:var(--mute)}
+.tag.red{background:#fde8e8;color:#c0262d}.tag.green{background:#e3f6e8;color:#1a7f37}.tag.orange{background:#fdf0e1;color:#b54708}.tag.blue{background:var(--pri2);color:var(--link)}.tag.grey{background:var(--bg);color:var(--mute)}
 .al h3{margin:2px 0 4px;font-size:16px}
 .al .meta{font-size:12px;color:var(--mute);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px}
 .al .txt{font-size:14px;white-space:pre-line}
@@ -104,7 +106,7 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 ol.stl li.past{opacity:.6}
 ol.stl li.next::before{background:var(--pri)}
 details.stops{margin-top:4px}
-details.stops summary{cursor:pointer;color:var(--pri);font-size:13px;list-style:none}
+details.stops summary{cursor:pointer;color:var(--link);font-size:13px;list-style:none}
 details.stops summary::-webkit-details-marker{display:none}
 details.stops summary::before{content:"▸ "}
 details.stops[open] summary::before{content:"▾ "}
@@ -117,7 +119,7 @@ ol.stl li.off{opacity:.55}
 ol.stl li .act{margin-left:auto;display:flex;gap:4px}
 ol.stl li .act button{font-size:11px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:2px 6px;cursor:pointer}
 .live{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.live a{font-size:12px;text-decoration:none;padding:4px 8px;border-radius:8px;background:var(--pri2);color:var(--pri)}
+.live a{font-size:12px;text-decoration:none;padding:4px 8px;border-radius:8px;background:var(--pri2);color:var(--link)}
 .dep{font-size:13px;padding:6px 0 2px 6px}
 .dep div{padding:2px 0}
 footer{font-size:11px;color:var(--mute);text-align:center;padding:10px 12px 30px}
@@ -167,6 +169,7 @@ footer a{color:var(--mute)}
     <div class="row mt">
       <div><label for="date">Data</label><input type="date" id="date"></div>
       <div><label for="time">Ora</label><input type="time" id="time"></div>
+      <button type="button" id="routeNow" style="flex:0 0 auto;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer">Adesso</button>
     </div>
 
     <div class="mt">
@@ -300,7 +303,7 @@ footer a{color:var(--mute)}
     </div>
     <div class="card" style="font-size:14px">
       <b>Privacy</b>
-      <div class="sub" style="margin-top:4px">Preferiti, ricerche recenti e dati delle linee restano solo su questo telefono. Le ricerche vengono inviate ai servizi qui sopra per ottenere i risultati. Nessun account, nessuna pubblicità.</div>
+      <div class="sub" style="margin-top:4px">Preferiti, ricerche recenti, l'ultima posizione usata e i dati delle linee restano solo su questo telefono. Per cercare un percorso, il punto scelto (anche la posizione GPS) viene inviato ai servizi qui sopra. Le ricerche vengono inviate ai servizi qui sopra per ottenere i risultati. Nessun account, nessuna pubblicità.</div>
       <div class="row mt"><button type="button" id="infoClear" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer">🗑️ Cancella i dati salvati sul telefono</button></div>
       <div id="infoClearMsg" class="sub mt" style="font-size:13px"></div>
     </div>
@@ -322,7 +325,7 @@ footer a{color:var(--mute)}
 
 <script>
 'use strict';
-const APP_VERSION = '2.4.0', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
+const APP_VERSION = '2.4.1', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -442,7 +445,7 @@ function liveLinks(l, g){
   if (g === 'treno'){
     const n = trainNumber(l);
     if (/trenord/i.test(ag)) out.push({label: n ? `Treno ${n} in tempo reale (Trenord)` : 'Circolazione Trenord', url: 'https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/' + (n ? '?train=' + n : '')});
-    out.push({label: 'ViaggiaTreno' + (n ? ` (treno ${n})` : ''), url: 'http://www.viaggiatreno.it/infomobilita/index.jsp'});
+    out.push({label: 'ViaggiaTreno' + (n ? ` (treno ${n})` : ''), url: 'https://www.viaggiatreno.it/infomobilita/index.jsp'});
     if (l.tripId) out.unshift({label: n ? `Segui il treno ${n}` : 'Segui la corsa', url: '#', trip: l.tripId, name: (l.displayName || l.routeShortName || '') + (n && !(l.displayName || '').includes(n) ? ' ' + n : '')});
     if (/trenitalia/i.test(ag)) out.push({label: 'Infomobilità Trenitalia', url: 'https://www.trenitalia.com/it/informazioni/Infomobilita/notizie-infomobilita.html'});
   } else if (/\batm\b|azienda trasporti milanesi/i.test(ag)){
@@ -567,15 +570,19 @@ function setupPlace(key){
 }
 setupPlace('from'); setupPlace('to');
 
-$('#gps').onclick = () => {
-  if (!navigator.geolocation) return showMsg('Posizione non disponibile su questo dispositivo.', true);
-  $('#from').value = 'Rilevo la posizione…';
-  navigator.geolocation.getCurrentPosition(p => {
-    sel.from = {label:'La mia posizione', place:`${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`, lat:p.coords.latitude, lon:p.coords.longitude};
-    store('intervia.bias', {lat:p.coords.latitude, lon:p.coords.longitude});
-    $('#from').value = sel.from.label;
-  }, () => { $('#from').value = ''; showMsg('Non riesco a leggere la posizione: controlla i permessi.', true); }, {enableHighAccuracy:true, timeout:10000});
-};
+const GPS_LABEL = '📍 La mia posizione';
+function useGps(key = 'from'){
+  return new Promise(resolve => {
+    if (!navigator.geolocation){ showMsg('Posizione non disponibile su questo dispositivo.', true); return resolve(false); }
+    sel[key] = null; $('#' + key).value = 'Rilevo la posizione…'; $('#go').disabled = true;
+    navigator.geolocation.getCurrentPosition(p => {
+      sel[key] = {label: GPS_LABEL, gps: true, place:`${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`, lat:p.coords.latitude, lon:p.coords.longitude};
+      store('intervia.bias', {lat:p.coords.latitude, lon:p.coords.longitude});
+      $('#' + key).value = GPS_LABEL; $('#go').disabled = false; resolve(true);
+    }, () => { $('#' + key).value = ''; $('#go').disabled = false; showMsg('Non riesco a leggere la posizione: controlla i permessi.', true); resolve(false); }, {enableHighAccuracy:true, timeout:10000});
+  });
+}
+$('#gps').onclick = () => useGps('from');
 $('#swap').onclick = () => {
   [sel.from, sel.to] = [sel.to, sel.from];
   [$('#from').value, $('#to').value] = [$('#to').value, $('#from').value];
@@ -696,10 +703,18 @@ $('#modes').addEventListener('click', e => {
   c.classList.toggle('on');
   if (!$('#modes .chip.on')) c.classList.add('on');   // almeno un mezzo
 });
-(function initDate(){
+// Finché l'utente non sceglie data/ora, la ricerca usa sempre "adesso" (anche se l'app è rimasta aperta per ore)
+let routeTimeTouched = false;
+function setRouteNow(){
   const n = new Date();
   $('#date').value = romeDay(n);
   $('#time').value = n.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:TZ});
+}
+['date','time'].forEach(id => $('#' + id).addEventListener('change', () => { routeTimeTouched = true; }));
+$('#routeNow').onclick = () => { routeTimeTouched = false; setRouteNow(); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !routeTimeTouched) setRouteNow(); });
+(function initDate(){
+  setRouteNow();
   const saved = store('intervia.prefs');
   if (saved){
     $('#maxT').value = saved.maxT ?? '';
@@ -713,15 +728,27 @@ function renderRecent(){
   const r = store('intervia.recent') || [];
   $('#recent').innerHTML = r.map((x,i) => `<button type="button" data-i="${i}">↺ ${esc(x.from.label.split(',')[0])} → ${esc(x.to.label.split(',')[0])}</button>`).join('');
 }
-$('#recent').addEventListener('click', e => {
+$('#recent').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   const x = (store('intervia.recent') || [])[+b.dataset.i]; if (!x) return;
-  sel.from = x.from; sel.to = x.to; $('#from').value = x.from.label; $('#to').value = x.to.label;
+  for (const k of ['from', 'to']){
+    if (x[k].gps || x[k].label === 'La mia posizione') await useGps(k);      // posizione di adesso, non quella salvata
+    else { sel[k] = x[k]; $('#' + k).value = x[k].label; }
+  }
 });
+// le voci "La mia posizione" si salvano senza coordinate: al riuso si rilegge il GPS
+const recentPoint = p => p.gps ? {label: GPS_LABEL, gps: true} : p;
+const samePoint = (a, b) => a.gps ? !!b.gps : a.place === b.place;
 function saveRecent(){
-  let r = (store('intervia.recent') || []).filter(x => !(x.from.place === sel.from.place && x.to.place === sel.to.place));
-  r.unshift({from:sel.from, to:sel.to}); store('intervia.recent', r.slice(0,6)); renderRecent();
+  const f = recentPoint(sel.from), t = recentPoint(sel.to);
+  let r = (store('intervia.recent') || []).filter(x => !(samePoint(f, x.from) && samePoint(t, x.to)));
+  r.unshift({from: f, to: t}); store('intervia.recent', r.slice(0,6)); renderRecent();
 }
+(function cleanGpsRecents(){   // recenti salvate dalle versioni precedenti con le coordinate GPS
+  const r = store('intervia.recent'); if (!Array.isArray(r)) return;
+  const fix = p => p.label === 'La mia posizione' ? {label: GPS_LABEL, gps: true} : p;
+  store('intervia.recent', r.map(x => ({from: fix(x.from), to: fix(x.to)})));
+})();
 renderRecent();
 
 /* ---------- Richieste: timeout reale (AbortController) ed errori distinti ---------- */
@@ -781,6 +808,7 @@ $('#f').addEventListener('submit', async e => {
   e.preventDefault();
   if (!sel.from) return showMsg('Scegli il punto di partenza dall\'elenco dei suggerimenti.', true);
   if (!sel.to)   return showMsg('Scegli la destinazione dall\'elenco dei suggerimenti.', true);
+  if (!routeTimeTouched) setRouteNow();
   if (!$('#date').value || !$('#time').value) return showMsg('Indica data e ora.', true);
   const time = romeISO($('#date').value, $('#time').value);
   last = {from:sel.from.place, to:sel.to.place, time, arriveBy, maxT:$('#maxT').value, groups:groupsSel()};
@@ -814,6 +842,7 @@ async function run(cursor, how){
       }
     }
     render(data, ver, how, diag);
+    if (how === 'new') $('#out').scrollIntoView({behavior: 'smooth', block: 'start'});
   }catch(err){
     if (err.name === 'AbortError' || stale()) return;
     showMsg(err.message, true);
@@ -1235,7 +1264,7 @@ function parseLineQuery(q){
     if (!STOP.has(t)) rest.push(t);
   }
   if (!ref && rest.length === 1 && !modes){ ref = rest.pop(); }
-  if (!ref) return null;
+  if (!ref || !/[\p{L}\p{N}]/u.test(ref)) return null;          // "???" e simili non sono nomi di linea
   const refs = new Set();
   const add = r => { refs.add(r); refs.add(r.toUpperCase()); refs.add(r.toLowerCase()); };
   if (/^\d+$/.test(ref) && prefix){ add(prefix + ref); add(prefix + ' ' + ref); }
@@ -1422,7 +1451,7 @@ async function openLineVariant(det, v, name){
       const byHour = new Map();
       runs.forEach(x => { const h = fmtT(depOf(x)).slice(0, 2); if (!byHour.has(h)) byHour.set(h, []); byHour.get(h).push(x); });
       dayBox.innerHTML = `<div class="card" style="margin:0 0 8px;padding:10px"><div style="font-size:13px;margin-bottom:6px"><b>${runs.length} partenze</b> da ${esc(vv.stops[0].name)} → ${esc(hs || vv.to)} · ${esc(fmtD(romeISO(day, '12:00')))}. Tocca un orario per vedere le fermate.</div>
-        <table style="width:100%;border-collapse:collapse;font-size:14px">${[...byHour.entries()].map(([h, xs]) => `<tr><th style="text-align:right;padding:3px 8px 3px 0;vertical-align:top;color:var(--mute);width:2.5em">${h}</th><td>${xs.map(x => `<a href="#" data-run="${esc(x.tripId)}" style="display:inline-block;padding:2px 6px;margin:1px;border-radius:6px;text-decoration:none;${x.tripId === vv.tripId ? 'background:var(--pri);color:#fff' : 'background:var(--pri2);color:var(--pri)'}">${fmtT(depOf(x)).slice(3)}${x.cancelled ? '✕' : ''}</a>`).join('')}</td></tr>`).join('')}</table></div>`;
+        <table style="width:100%;border-collapse:collapse;font-size:14px">${[...byHour.entries()].map(([h, xs]) => `<tr><th style="text-align:right;padding:3px 8px 3px 0;vertical-align:top;color:var(--mute);width:2.5em">${h}</th><td>${xs.map(x => `<a href="#" data-run="${esc(x.tripId)}" style="display:inline-block;padding:2px 6px;margin:1px;border-radius:6px;text-decoration:none;${x.tripId === vv.tripId ? 'background:var(--pri);color:#fff' : 'background:var(--pri2);color:var(--link)'}">${fmtT(depOf(x)).slice(3)}${x.cancelled ? '✕' : ''}</a>`).join('')}</td></tr>`).join('')}</table></div>`;
       dayBox.querySelectorAll('[data-run]').forEach(a => a.onclick = async ev => {
         ev.preventDefault(); a.textContent = '…';
         const nv = await variantFromTrip(a.dataset.run, vv);
@@ -1638,7 +1667,7 @@ async function loadLine(cd){
     const op = cd.dataset.op, route = cd.dataset.route;
     const liveL = [];
     if (/trenord/i.test(op)) liveL.push({label:'Circolazione Trenord in tempo reale', url:'https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/'});
-    if (route === 'train') liveL.push({label:'ViaggiaTreno', url:'http://www.viaggiatreno.it/infomobilita/index.jsp'});
+    if (route === 'train') liveL.push({label:'ViaggiaTreno', url:'https://www.viaggiatreno.it/infomobilita/index.jsp'});
     if (/\batm\b|azienda trasporti milanesi/i.test(op)) liveL.push({label:'Avvisi ATM', url:'https://www.atm.it/'});
     det.innerHTML = `<div class="rmap"></div>
       <ol class="stl">${stops.map((s,i) => `<li data-i="${i}"><span>${esc(s.name)}</span><span class="act"><button type="button" data-a="dep">Partenze</button><button type="button" data-a="from">Da qui</button><button type="button" data-a="to">A qui</button></span><div class="dep" hidden></div></li>`).join('')}</ol>
@@ -1734,10 +1763,12 @@ function openStation(x){
   loadBoard();
 }
 let boardSeq = 0;
-async function loadBoard(){
+async function loadBoard(auto = false){
   clearInterval(stTimer);
   const seq = ++boardSeq;
-  const out = $('#stout'); out.innerHTML = '<div class="msg">Carico il tabellone…</div>';
+  const out = $('#stout');
+  const keepY = window.scrollY;
+  if (!auto) out.innerHTML = '<div class="msg" role="status">Carico il tabellone…</div>';   // negli aggiornamenti automatici la tabella resta visibile
   let data = null;
   for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
     const p = new URLSearchParams({stopId: stSel.id, n: '40', arriveBy: String(stArr)});
@@ -1746,10 +1777,10 @@ async function loadBoard(){
     if (seq !== boardSeq) return;
     if (r && r.ok){ data = await r.json(); break; }
   }
-  if (!data){ out.innerHTML = '<div class="msg err">Tabellone non disponibile.</div>'; return; }
+  if (!data){ if (!auto) out.innerHTML = '<div class="msg err">Tabellone non disponibile.</div>'; else stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(true); }, 60000); return; }
   const list = data.stopTimes || [];
   const now = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
-  out.innerHTML = `<div class="msg" style="margin-bottom:12px"><b>${esc(stSel.name)}</b> · ${stArr ? 'arrivi' : 'partenze'} ${refState.station ? 'dalle ' + esc(refLabel('station')) : 'da adesso'} · aggiornato alle ${now}<br><button type="button" class="favbtn" data-fav="station:${esc(stSel.id)}" data-favtype="station" data-favlabel="${esc(stSel.name)}" data-favdata="${esc(JSON.stringify(stSel))}" style="border:0;background:none;color:var(--pri);padding:4px 0;cursor:pointer;font-size:14px">${isFav('station:' + stSel.id) ? '★ Preferita' : '☆ Salva stazione'}</button> <a href="#" id="strefresh" style="float:right">↻ Aggiorna</a></div>` +
+  out.innerHTML = `<div class="msg" style="margin-bottom:12px"><b>${esc(stSel.name)}</b> · ${stArr ? 'arrivi' : 'partenze'} ${refState.station ? 'dalle ' + esc(refLabel('station')) : 'da adesso'} · aggiornato alle ${now}<br><button type="button" class="favbtn" data-fav="station:${esc(stSel.id)}" data-favtype="station" data-favlabel="${esc(stSel.name)}" data-favdata="${esc(JSON.stringify(stSel))}" style="border:0;background:none;color:var(--link);padding:4px 0;cursor:pointer;font-size:14px">${isFav('station:' + stSel.id) ? '★ Preferita' : '☆ Salva stazione'}</button> <a href="#" id="strefresh" style="float:right">↻ Aggiorna</a></div>` +
     (list.length ? `<div class="card">${list.map(x => {
       const p = x.place || {}, t = stArr ? (p.arrival || p.departure) : (p.departure || p.arrival);
       const sch = stArr ? (p.scheduledArrival || p.scheduledDeparture) : (p.scheduledDeparture || p.scheduledArrival);
@@ -1763,7 +1794,8 @@ async function loadBoard(){
     }).join('')}</div>` : '<div class="msg">Nessun passaggio nelle prossime ore.</div>');
   $('#strefresh').onclick = e => { e.preventDefault(); loadBoard(); };
   bindFavButtons(out);
-  if (!refState.station) stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(); }, 60000);
+  if (auto) window.scrollTo(0, keepY);
+  if (!refState.station) stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(true); }, 60000);
 }
 
 /* ---------- Ponte dati (api.php su hosting PHP) ---------- */
@@ -1798,7 +1830,12 @@ function renderTrRecent(){
   $('#trrecent').innerHTML = r.map(n => `<button type="button" data-n="${esc(n)}">🚆 ${esc(n)}</button>`).join('');
 }
 $('#trrecent').addEventListener('click', e => { const b = e.target.closest('button'); if (b){ $('#trainq').value = b.dataset.n; openTrain(b.dataset.n); } });
-$('#tf').addEventListener('submit', e => { e.preventDefault(); const n = $('#trainq').value.replace(/\D/g, ''); if (n) openTrain(n); });
+$('#tf').addEventListener('submit', e => {
+  e.preventDefault();
+  const raw = $('#trainq').value.replace(/\s/g, '');
+  if (!/^\d{1,6}$/.test(raw)){ $('#tout').innerHTML = '<div class="msg err" role="alert">Scrivi solo il numero del treno, senza lettere: per esempio 9660 o 24113.</div>'; return; }
+  openTrain(raw);
+});
 renderTrRecent();
 let trainSeq = 0;
 async function openTrain(n, o, d){
@@ -1841,7 +1878,7 @@ function renderTrain(t, tripCtx){
     <div class="txt">${esc(t.origin)} → ${esc(t.destination)}</div>
     ${t.lastStation && t.lastStation !== '--' ? `<div class="meta">📍 Ultimo rilevamento: ${esc(t.lastStation)} ${t.lastTime ? 'alle ' + msT(t.lastTime) : ''}</div>` : ''}
     ${t.notes ? `<div class="meta">${esc(t.notes)}</div>` : ''}
-    <div class="live"><a href="#" id="trref">↻ Aggiorna</a>${t.number ? `<button type="button" class="favbtn" data-fav="train:${esc(t.number)}" data-favtype="train" data-favlabel="${esc(t.number)}" style="border:0;font-size:12px;padding:4px 8px;border-radius:8px;background:var(--pri2);color:var(--pri);cursor:pointer">${isFav('train:' + t.number) ? '★ Preferito' : '☆ Salva treno ' + esc(t.number)}</button>` : ''}<a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/${t.number ? '?train=' + esc(t.number) : ''}" target="_blank" rel="noopener">📡 Pagina Trenord</a><a href="http://www.viaggiatreno.it/infomobilita/index.jsp" target="_blank" rel="noopener">📡 ViaggiaTreno</a></div>
+    <div class="live"><a href="#" id="trref">↻ Aggiorna</a>${t.number ? `<button type="button" class="favbtn" data-fav="train:${esc(t.number)}" data-favtype="train" data-favlabel="${esc(t.number)}" style="border:0;font-size:12px;padding:4px 8px;border-radius:8px;background:var(--pri2);color:var(--link);cursor:pointer">${isFav('train:' + t.number) ? '★ Preferito' : '☆ Salva treno ' + esc(t.number)}</button>` : ''}<a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/${t.number ? '?train=' + esc(t.number) : ''}" target="_blank" rel="noopener">📡 Pagina Trenord</a><a href="https://www.viaggiatreno.it/infomobilita/index.jsp" target="_blank" rel="noopener">📡 ViaggiaTreno</a></div>
   </div>
   <div class="card"><ol class="stl">${rows}</ol><div class="sub" style="font-size:12px">Si aggiorna da solo ogni minuto. Se la pagina Trenord si apre bianca, torna indietro e riaprila: la seconda volta si carica.</div></div>`;
   $('#trref').onclick = e => { e.preventDefault(); if (tripCtx) openTrip(tripCtx.tripId, tripCtx.name); else openTrain(trCur.n, trCur.o, trCur.d); };
@@ -1966,7 +2003,7 @@ function alertCard(it, live){
   const long = it.text && it.text.length > 280;
   return `<div class="card al"><span class="tag ${c}">${lab}</span><span style="float:right;font-size:12px;color:var(--mute)">🕒 ${esc(whenTxt(it.date))}</span>
     <h3>${esc(it.title)}</h3>
-    ${long ? `<details><summary class="txt" style="cursor:pointer">${esc(it.text.slice(0, 240))}… <span style="color:var(--pri)">altro</span></summary><div class="txt">${esc(it.text)}</div></details>` : `<div class="txt">${esc(it.text)}</div>`}
+    ${long ? `<details><summary class="txt" style="cursor:pointer">${esc(it.text.slice(0, 240))}… <span style="color:var(--link)">altro</span></summary><div class="txt">${esc(it.text)}</div></details>` : `<div class="txt">${esc(it.text)}</div>`}
     <div class="meta">${(it.categories || []).length ? '📍 ' + esc(it.categories.join(', ')) : ''}${it.link ? ` <a href="${esc(it.link)}" target="_blank" rel="noopener">Dettagli RFI</a>` : ''}</div></div>`;
 }
 function strikeFields(r){
@@ -2239,7 +2276,7 @@ function showCityLine([ref, rels]){
 
 renderFavs();
 initRefControls();
-function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}">${esc(t)}</div>`; }
+function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}" role="${err ? 'alert' : 'status'}">${esc(t)}</div>`; $('#out').scrollIntoView({behavior: 'smooth', block: 'nearest'}); }
 
 /* ---------- Aggiornamento forzato all'avvio ---------- */
 // 1) il service worker scarica sempre la versione più recente (no-store);
@@ -2282,9 +2319,22 @@ $('#infoCheck').onclick = async () => {
   const v = await checkUpdate(true);
   $('#infoUpd').textContent = !v ? 'Impossibile controllare ora (sei offline?).' : vNum(v.version) > vNum(APP_VERSION) ? 'Aggiorno…' : '✅ Stai usando la versione più recente.';
 };
+// Due tocchi: il primo chiede conferma per 6 secondi
+let clearArmed = null;
 $('#infoClear').onclick = () => {
-  const keys = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('intervia.')) keys.push(k); } keys.forEach(k => localStorage.removeItem(k)); }catch(e){}
-  $('#infoClearMsg').textContent = `Cancellati ${keys.length} elementi (preferiti, recenti, impostazioni, dati delle linee).`;
+  const keys = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('intervia.')) keys.push(k); } }catch(e){}
+  if (!clearArmed){
+    const nf = favs().length, nr = (store('intervia.recent') || []).length;
+    $('#infoClear').textContent = '⚠️ Tocca di nuovo per confermare';
+    $('#infoClearMsg').textContent = `Verranno cancellati ${nf} preferiti, ${nr} ricerche recenti, le impostazioni, l'ultima posizione usata e gli elenchi delle linee salvati su questo telefono.`;
+    clearArmed = setTimeout(() => { clearArmed = null; $('#infoClear').textContent = '🗑️ Cancella i dati salvati sul telefono'; $('#infoClearMsg').textContent = ''; }, 6000);
+    return;
+  }
+  clearTimeout(clearArmed); clearArmed = null;
+  try{ keys.forEach(k => localStorage.removeItem(k)); }catch(e){}
+  [renderRecent, renderFavs, renderStRecent, renderTrRecent, renderCityFavs].forEach(f => { try{ f(); }catch(e){} });
+  $('#infoClear').textContent = '🗑️ Cancella i dati salvati sul telefono';
+  $('#infoClearMsg').textContent = `Cancellati ${keys.length} elementi.`;
 };
 </script>
 </body>

@@ -286,5 +286,69 @@ await test('città: linee note solo a OpenStreetMap mostrate a parte come "senza
   assert.match(ag.textContent, /Cerca il sito/, 'azienda sconosciuta: solo link di ricerca dichiarato');
 });
 
+console.log('Rilascio 2.4.1');
+await test('A1: con l\'app aperta da ore la ricerca usa "adesso" se l\'orario non è stato scelto', async () => {
+  let asked = null;
+  const { w, d } = await boot((u, o, w) => { if (u.includes('/plan?')) asked = new URL(u).searchParams.get('time'); return json(w, { itineraries: [] }); });
+  d.getElementById('time').value = '05:00'; d.getElementById('date').value = '2020-01-01';   // valore "vecchio" lasciato dall'apertura
+  setPlaces(w); submit(w, d);
+  assert.ok(await until(() => asked));
+  assert.ok(Math.abs(Date.parse(asked) - Date.now()) < 120000, 'orario richiesto ≈ adesso: ' + asked);
+  // se l'utente sceglie un orario, viene rispettato
+  d.getElementById('date').value = '2026-12-24'; d.getElementById('time').value = '08:15';
+  d.getElementById('time').dispatchEvent(new w.Event('change')); asked = null; submit(w, d);
+  assert.ok(await until(() => asked)); assert.equal(asked, '2026-12-24T07:15:00.000Z');
+  d.getElementById('routeNow').click(); asked = null; submit(w, d);
+  assert.ok(await until(() => asked)); assert.ok(Math.abs(Date.parse(asked) - Date.now()) < 120000, '"Adesso" ripristina l\'ora attuale');
+});
+await test('A2: l\'aggiornamento automatico del tabellone non svuota la pagina', async () => {
+  let slow = false;
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('/stoptimes')) return slow ? new Promise(r => setTimeout(() => r(json(w, { stopTimes: [] })), 300)) : json(w, { stopTimes: [{ mode: 'BUS', routeShortName: '1', headsign: 'X', tripId: 't', place: { departure: Z('09:00') } }] });
+    return json(w, []);
+  });
+  w.eval(`openStation({id:'s1', name:'Duomo'})`);
+  assert.ok(await until(() => /Duomo/.test(d.getElementById('stout').textContent) && d.querySelector('#stout .leg')));
+  slow = true; w.eval('loadBoard(true)'); await sleep(50);
+  assert.ok(d.querySelector('#stout .leg'), 'la tabella resta visibile durante l\'aggiornamento');
+  assert.ok(!/Carico il tabellone/.test(d.getElementById('stout').textContent));
+});
+await test('A3: "La mia posizione" salvata nelle recenti senza coordinate e riletta al riuso', async () => {
+  const { w, d } = await boot((u, o, w) => json(w, { itineraries: [] }));
+  let lat = 45.4001;
+  Object.defineProperty(w.navigator, 'geolocation', { value: { getCurrentPosition: ok => ok({ coords: { latitude: lat, longitude: 8.9201 } }) } });
+  d.getElementById('gps').click(); await sleep(20);
+  w.eval(`sel.to = {label:'Milano Centrale', place:'stop-mc'}`);
+  submit(w, d); await sleep(50);
+  const rec = JSON.parse(w.localStorage.getItem('intervia.recent'))[0];
+  assert.equal(rec.from.gps, true); assert.equal(rec.from.place, undefined, 'nessuna coordinata salvata');
+  lat = 45.9; d.querySelector('#recent button').click(); await sleep(30);
+  assert.match(w.eval('sel.from.place'), /^45\.9/, 'posizione riletta, non quella vecchia');
+});
+await test('A4: dopo la ricerca la pagina scorre ai risultati', async () => {
+  const { w, d } = await boot((u, o, w) => u.includes('/plan?') ? json(w, { itineraries: [IT(L('BUS', '07:10', '07:40'))] }) : json(w, []));
+  let scrolled = 0; d.getElementById('out').scrollIntoView = () => { scrolled++; };
+  setPlaces(w); submit(w, d);
+  assert.ok(await until(() => d.querySelectorAll('.it').length === 1 && scrolled > 0));
+});
+await test('M1: cancellazione dei dati con conferma e interfaccia aggiornata', async () => {
+  const { w, d } = await boot((u, o, w) => json(w, []));
+  w.localStorage.setItem('intervia.recent', JSON.stringify([{ from: { label: 'A', place: 'a' }, to: { label: 'B', place: 'b' } }]));
+  w.eval('renderRecent()');
+  assert.equal(d.querySelectorAll('#recent button').length, 1);
+  d.getElementById('infoClear').click();
+  assert.ok(w.localStorage.getItem('intervia.recent'), 'primo tocco: nulla cancellato');
+  assert.match(d.getElementById('infoClearMsg').textContent, /1 ricerche recenti/);
+  d.getElementById('infoClear').click();
+  assert.equal(w.localStorage.getItem('intervia.recent'), null);
+  assert.equal(d.querySelectorAll('#recent button').length, 0, 'le recenti spariscono subito');
+});
+await test('M7: numero treno non valido → messaggio chiaro', async () => {
+  const { w, d } = await boot((u, o, w) => json(w, []));
+  d.getElementById('trainq').value = 'abc';
+  d.getElementById('tf').dispatchEvent(new w.Event('submit', { cancelable: true }));
+  assert.match(d.getElementById('tout').textContent, /Scrivi solo il numero del treno/);
+});
+
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);
