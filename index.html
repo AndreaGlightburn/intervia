@@ -90,6 +90,26 @@ input[type=text],input[type=date],input[type=time],select{width:100%;padding:10p
 .mm-foot .lab{font-size:14px;margin-bottom:8px;min-height:20px}
 .mm-foot .hint{color:var(--mute);font-size:13px}
 .pin{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-weight:600;cursor:pointer}
+.tabs button.on{background:var(--pri);border-color:var(--pri);color:#fff}
+details.stops{margin-top:4px}
+details.stops summary{cursor:pointer;color:var(--pri);font-size:13px;list-style:none}
+details.stops summary::-webkit-details-marker{display:none}
+details.stops summary::before{content:"▸ "}
+details.stops[open] summary::before{content:"▾ "}
+ol.stl{list-style:none;margin:6px 0 2px;padding:0 0 0 14px;border-left:3px solid var(--pri2)}
+ol.stl li{position:relative;padding:3px 0 3px 6px;font-size:13px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+ol.stl li::before{content:"";position:absolute;left:-21px;top:9px;width:9px;height:9px;border-radius:50%;background:var(--card);border:2px solid var(--pri)}
+ol.stl li .tm{font-weight:600;min-width:42px}
+ol.stl li.mine{font-weight:600}
+ol.stl li.off{opacity:.55}
+ol.stl li .act{margin-left:auto;display:flex;gap:4px}
+ol.stl li .act button{font-size:11px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:2px 6px;cursor:pointer}
+.live{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.live a{font-size:12px;text-decoration:none;padding:4px 8px;border-radius:8px;background:var(--pri2);color:var(--pri)}
+.dep{font-size:13px;padding:6px 0 2px 6px}
+.dep div{padding:2px 0}
 footer{font-size:11px;color:var(--mute);text-align:center;padding:10px 12px 30px}
 footer a{color:var(--mute)}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px;margin-right:6px}
@@ -103,6 +123,8 @@ footer a{color:var(--mute)}
   <p>Treni, bus, metro e tram: tutte le soluzioni da A a B</p></div>
 </header>
 <main>
+  <div class="tabs" id="tabs"><button type="button" class="on" data-t="route">🧭 Percorso</button><button type="button" data-t="lines">🚉 Linee</button></div>
+  <div id="tab-route">
   <form class="card" id="f" autocomplete="off">
     <div class="place" id="p-from">
       <label for="from">Da</label>
@@ -159,6 +181,18 @@ footer a{color:var(--mute)}
   </form>
 
   <div id="out"></div>
+  </div>
+  <div id="tab-lines" hidden>
+    <form class="card" id="lf" autocomplete="off">
+      <label for="lineq">Linea</label>
+      <div class="row">
+        <input type="text" id="lineq" placeholder="es. S9, M2, 91, R31, RV">
+        <button class="go" type="submit" id="lgo" style="flex:0 0 auto;width:auto;margin:0;padding:10px 16px">Cerca</button>
+      </div>
+      <div class="sub" style="font-size:12px;color:var(--mute);margin-top:6px">Cerca nella zona del punto di partenza scelto o della tua ultima posizione (raggio 80 km).</div>
+    </form>
+    <div id="lout"></div>
+  </div>
 </main>
 <div id="mapModal">
   <div class="mm-head"><b id="mmTitle">Scegli sulla mappa</b><button type="button" id="mmGps">📍 Qui</button><button type="button" id="mmClose">✕</button></div>
@@ -169,7 +203,7 @@ footer a{color:var(--mute)}
   </div>
 </div>
 <footer>
-  Dati orari e percorsi: <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> · indirizzi: <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a> (servizio comunitario, dati GTFS aperti, © OpenStreetMap contributors).
+  Dati orari e percorsi: <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> · indirizzi: <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a> · linee: <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a> (servizio comunitario, dati GTFS aperti, © OpenStreetMap contributors).
   Orari e prezzi definitivi sul sito dell'operatore.
 </footer>
 
@@ -235,6 +269,29 @@ function ticketLinks(leg){
   if (leg.agencyUrl) return [{label:'Biglietto ' + (agency || 'operatore'), url:leg.agencyUrl, main:true}];
   if (agency) return [{label:'Cerca biglietto ' + agency, url:'https://www.google.com/search?q=' + encodeURIComponent('biglietto ' + agency), main:false}];
   return [];
+}
+
+/* ---------- Stato in tempo reale ---------- */
+function trainNumber(l){
+  for (const v of [l.tripShortName, l.displayName, l.routeShortName, l.headsign]){
+    const m = String(v || '').match(/\b(\d{3,5})\b/);
+    if (m) return m[1];
+  }
+  return null;
+}
+function liveLinks(l, g){
+  const ag = l.agencyName || '', out = [];
+  if (g === 'treno'){
+    const n = trainNumber(l);
+    if (/trenord/i.test(ag)) out.push({label: n ? `Treno ${n} in tempo reale (Trenord)` : 'Circolazione Trenord', url: 'https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/' + (n ? '?train=' + n : '')});
+    out.push({label: 'ViaggiaTreno' + (n ? ` (treno ${n})` : ''), url: 'http://www.viaggiatreno.it/infomobilita/index.jsp'});
+    if (/trenitalia/i.test(ag)) out.push({label: 'Infomobilità Trenitalia', url: 'https://www.trenitalia.com/it/informazioni/Infomobilita/notizie-infomobilita.html'});
+  } else if (/\batm\b|azienda trasporti milanesi/i.test(ag)){
+    out.push({label: 'Avvisi ATM', url: 'https://www.atm.it/'});
+  } else if (l.agencyUrl){
+    out.push({label: 'Avvisi ' + (ag || 'operatore'), url: l.agencyUrl});
+  }
+  return out;
 }
 
 /* ---------- Utilità ---------- */
@@ -609,7 +666,7 @@ function render(data, ver, how, diag){
   const head = `<div class="msg" style="margin-bottom:12px">${shown.length} soluzioni · ${esc(sel.from?.label.split(',')[0] || '')} → ${esc(sel.to?.label.split(',')[0] || '')} · ${fmtD(shown[0].startTime)}${last.snapNote ? `<br><small>📍 Calcolato con ${esc(last.snapNote)} (la più vicina al punto scelto)</small>` : ''}</div>`;
   out.innerHTML = head + shown.map((it,i) => card(it, i, ver)).join('') + pager();
   out.querySelectorAll('.it').forEach(c => c.addEventListener('click', e => {
-    if (e.target.closest('a') || e.target.closest('.rmap')) return;
+    if (e.target.closest('a') || e.target.closest('.rmap') || e.target.closest('details.stops')) return;
     c.classList.toggle('open');
     if (c.classList.contains('open')){ const el = c.querySelector('.rmap'); drawRoute(el, shown[+el.dataset.i], ver); }
   }));
@@ -677,6 +734,8 @@ function legHtml(l, ver){
   const sched = (x, s) => s && x && x !== s ? `<small>prev. ${fmtT(s)}</small>` : '';
   const track = (p) => p?.track ? ` · bin. ${esc(p.track)}${p.scheduledTrack && p.scheduledTrack !== p.track ? ` <span class="late">(era ${esc(p.scheduledTrack)})</span>` : ''}` : '';
   const stops = (l.intermediateStops || []).length;
+  const live = liveLinks(l, g).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">📡 ${esc(x.label)}</a>`).join('');
+  const legKey = 'L' + (++legSeq); legStore[legKey] = l;
   const name = l.displayName || l.routeShortName || NAME[g];
   const tix = ticketLinks(l).map(t => `<a class="${t.main ? 'main' : ''}" href="${esc(t.url)}" target="_blank" rel="noopener">🎫 ${esc(t.label)}</a>`).join('');
   return `<div class="leg">
@@ -687,11 +746,183 @@ function legHtml(l, ver){
       ${l.cancelled ? ' <span class="canc">CANCELLATO</span>' : ''}
       <div class="sub">Da <b>${esc(l.from?.name)}</b>${track(l.from)}</div>
       <div class="sub">A <b>${esc(l.to?.name)}</b> alle ${fmtT(l.to?.arrival || l.endTime)}${da > 0 && l.realTime ? ` <span class="late">+${da}′</span>` : ''}${track(l.to)}</div>
-      <div class="sub">${fmtDur(l.duration || 0)}${stops ? ` · ${stops} fermate intermedie` : ' · senza fermate intermedie'}${l.agencyName ? ' · ' + esc(l.agencyName) : ''}</div>
+      <div class="sub">${fmtDur(l.duration || 0)}${l.agencyName ? ' · ' + esc(l.agencyName) : ''}</div>
+      <details class="stops" data-leg="${legKey}"><summary>${stops ? `${stops} fermate intermedie` : (l.intermediateStops ? 'Nessuna fermata intermedia · vedi tutta la corsa' : 'Mostra le fermate')}</summary><div class="stbox"></div></details>
       ${tix ? `<div class="tix">${tix}</div>` : ''}
+      ${live ? `<div class="live">${live}</div>` : ''}
     </div>
   </div>`;
 }
+let legSeq = 0; const legStore = {};
+function stopRow(st, cls, kind){
+  const t = kind === 'arr' ? (st.arrival || st.departure) : (st.departure || st.arrival);
+  const sch = kind === 'arr' ? (st.scheduledArrival || st.scheduledDeparture) : (st.scheduledDeparture || st.scheduledArrival);
+  const d = delayMin(t, sch);
+  return `<li class="${cls || ''}"><span class="tm">${t ? fmtT(t) : ''}</span><span>${esc(st.name)}${st.track ? ` <span style="color:var(--mute)">bin. ${esc(st.track)}</span>` : ''}</span>${d > 0 ? `<span class="late">+${d}′</span>` : ''}${st.cancelled ? ' <span class="canc">soppressa</span>' : ''}</li>`;
+}
+async function fetchTrip(tripId){
+  for (const ver of [planVer, 'v5', 'v4', 'v2', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
+    try{
+      const r = await fetch(`${API}/api/${ver}/trip?tripId=${encodeURIComponent(tripId)}`);
+      if (r.ok) return await r.json();
+    }catch(e){}
+  }
+  return null;
+}
+async function fillStops(det){
+  const box = det.querySelector('.stbox'); if (box.dataset.done) return;
+  const l = legStore[det.dataset.leg]; if (!l) return;
+  box.dataset.done = '1';
+  const mine = `<ol class="stl">${stopRow(l.from, 'mine', 'dep')}${(l.intermediateStops || []).map(st => stopRow(st, '', 'arr')).join('')}${stopRow(l.to, 'mine', 'arr')}</ol>`;
+  box.innerHTML = mine + (l.tripId ? '<div class="sub" style="font-size:12px"><a href="#" data-full>Vedi tutta la corsa, dal capolinea al capolinea</a></div>' : '');
+  if (!l.intermediateStops && l.tripId) loadFullTrip(box, l);
+  box.querySelector('[data-full]')?.addEventListener('click', e => { e.preventDefault(); loadFullTrip(box, l); });
+}
+async function loadFullTrip(box, l){
+  box.innerHTML = '<div class="sub">Carico le fermate…</div>';
+  const t = await fetchTrip(l.tripId);
+  const tl = t && (t.legs || []).find(x => x.tripId === l.tripId) || (t && t.legs && t.legs[0]);
+  if (!tl){ box.innerHTML = '<div class="sub">Elenco fermate non disponibile per questa corsa.</div>'; return; }
+  const all = [tl.from, ...(tl.intermediateStops || []), tl.to];
+  let inside = false;
+  const rows = all.map((st, i) => {
+    const isFrom = st.name === l.from?.name, isTo = st.name === l.to?.name;
+    if (isFrom) inside = true;
+    const cls = isFrom || isTo ? 'mine' : (inside ? '' : 'off');
+    const r = stopRow(st, cls, i === 0 ? 'dep' : 'arr');
+    if (isTo) inside = false;
+    return r;
+  }).join('');
+  box.innerHTML = `<ol class="stl">${rows}</ol><div class="sub" style="font-size:12px">In grassetto salita e discesa; in grigio le fermate fuori dal tuo tragitto.</div>`;
+}
+document.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('details.stops') && e.target.open) fillStops(e.target); }, true);
+
+/* ---------- Ricerca linee (OpenStreetMap / Overpass) ---------- */
+const OVERPASS = 'https://overpass-api.de/api/interpreter';
+const ROUTE_ICON = {train:'🚆', light_rail:'🚆', subway:'🚇', tram:'🚊', bus:'🚌', trolleybus:'🚎', ferry:'⛴️', monorail:'🚝', coach:'🚍'};
+async function overpass(q){
+  const r = await fetch(OVERPASS, {method:'POST', body:'data=' + encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+  if (r.status === 429 || r.status === 504) throw new Error('Il servizio delle linee è occupato, riprova tra qualche secondo.');
+  if (!r.ok) throw new Error('Servizio linee non disponibile (' + r.status + ')');
+  return r.json();
+}
+let lineCenter = null;
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  $('#tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  $('#tab-route').hidden = b.dataset.t !== 'route';
+  $('#tab-lines').hidden = b.dataset.t !== 'lines';
+});
+$('#lf').addEventListener('submit', async e => {
+  e.preventDefault();
+  let ref = $('#lineq').value.trim().replace(/^(linea|line|bus|tram|treno)\s+/i, '');
+  if (!ref) return;
+  const reEsc = ref.replace(/[^\p{L}\p{N} ]/gu, '.');
+  const c = (sel.from && sel.from.lat != null) ? sel.from : (store('intervia.bias') || {lat:DEFAULT_C[0], lon:DEFAULT_C[1]});
+  lineCenter = c;
+  const out = $('#lout'); out.innerHTML = '<div class="msg">Cerco la linea…</div>';
+  const btn = $('#lgo'); btn.disabled = true;
+  try{
+    const q = `[out:json][timeout:25];relation["type"="route"]["route"~"^(train|light_rail|subway|tram|bus|trolleybus|ferry|monorail|coach)$"]["ref"~"^${reEsc}$",i](around:80000,${c.lat},${c.lon});out tags center;`;
+    const data = await overpass(q);
+    const km = x => x.center ? Math.hypot((x.center.lat - c.lat) * 111, (x.center.lon - c.lon) * 78) : 999;
+    const rels = (data.elements || []).sort((a,b) => km(a) - km(b)).slice(0, 25);
+    if (!rels.length){ out.innerHTML = `<div class="msg">Nessuna linea "${esc(ref)}" trovata entro 80 km. Prova a scegliere prima una partenza nella zona della linea.</div>`; return; }
+    out.innerHTML = `<div class="msg" style="margin-bottom:12px">${rels.length} percorsi per la linea "${esc(ref)}" (ogni direzione è un percorso a parte)</div>` +
+      rels.map(r => {
+        const t = r.tags || {}, ic = ROUTE_ICON[t.route] || '🚏';
+        const col = t.colour && /^#?[0-9a-f]{3,6}$/i.test(t.colour) ? (t.colour[0] === '#' ? t.colour : '#' + t.colour) : null;
+        const title = t.from && t.to ? `${t.from} → ${t.to}` : (t.name || '');
+        return `<div class="card it line" data-id="${r.id}" data-ref="${esc(t.ref || ref)}" data-route="${esc(t.route || '')}" data-op="${esc(t.operator || t.network || '')}">
+          <div class="top"><div><span class="badge" ${col ? `style="background:${esc(col)};color:#fff"` : ''}>${ic} ${esc(t.ref || ref)}</span> <b>${esc(title)}</b></div>
+          <div class="dur">${Math.round(km(r))} km</div></div>
+          <div class="sub" style="font-size:13px;color:var(--mute);margin-top:4px">${esc([t.operator, t.network].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · '))}<span style="float:right">Fermate ▾</span></div>
+          <div class="det"></div></div>`;
+      }).join('');
+    out.querySelectorAll('.line').forEach(cd => cd.addEventListener('click', ev => {
+      if (ev.target.closest('a, button, .rmap, .dep')) return;
+      cd.classList.toggle('open');
+      if (cd.classList.contains('open')) loadLine(cd);
+    }));
+  }catch(err){ out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+  finally{ btn.disabled = false; }
+});
+async function loadLine(cd){
+  const det = cd.querySelector('.det'); if (det.dataset.done) return;
+  det.dataset.done = '1'; det.innerHTML = '<div class="sub">Carico le fermate…</div>';
+  try{
+    const id = cd.dataset.id;
+    const data = await overpass(`[out:json][timeout:25];relation(${id})->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;`);
+    const rel = data.elements.find(x => x.type === 'relation');
+    const byId = {}; data.elements.forEach(x => { if (x.type !== 'relation') byId[x.type + x.id] = x; });
+    const pick = rolePrefix => (rel.members || []).filter(m => m.role.startsWith(rolePrefix)).map(m => {
+      const el = byId[m.type + m.ref]; if (!el) return null;
+      const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
+      const name = el.tags && (el.tags.name || el.tags['name:it'] || el.tags.ref_name);
+      return name && lat != null ? {name, lat, lon} : null;
+    }).filter(Boolean);
+    let stops = pick('stop');
+    const plats = pick('platform');
+    if (plats.length > stops.length) stops = plats;
+    stops = stops.filter((s, i, a) => i === 0 || s.name !== a[i-1].name);
+    if (!stops.length){ det.innerHTML = '<div class="sub">Fermate non disponibili per questo percorso nei dati OpenStreetMap.</div>'; return; }
+    const op = cd.dataset.op, route = cd.dataset.route;
+    const liveL = [];
+    if (/trenord/i.test(op)) liveL.push({label:'Circolazione Trenord in tempo reale', url:'https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/'});
+    if (route === 'train') liveL.push({label:'ViaggiaTreno', url:'http://www.viaggiatreno.it/infomobilita/index.jsp'});
+    if (/\batm\b|azienda trasporti milanesi/i.test(op)) liveL.push({label:'Avvisi ATM', url:'https://www.atm.it/'});
+    det.innerHTML = `<div class="rmap"></div>
+      <ol class="stl">${stops.map((s,i) => `<li data-i="${i}"><span>${esc(s.name)}</span><span class="act"><button type="button" data-a="dep">Partenze</button><button type="button" data-a="from">Da qui</button><button type="button" data-a="to">A qui</button></span><div class="dep" hidden></div></li>`).join('')}</ol>
+      ${liveL.length ? `<div class="live">${liveL.map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">📡 ${esc(x.label)}</a>`).join('')}</div>` : ''}
+      <div class="sub" style="font-size:11px;color:var(--mute);margin-top:6px">Fermate da OpenStreetMap; partenze in tempo reale da Transitous.</div>`;
+    if (hasL()){
+      const el = det.querySelector('.rmap');
+      const m = L.map(el, {scrollWheelZoom:false}); L.tileLayer(TILE, {maxZoom:19, attribution:TILE_ATTR}).addTo(m);
+      const pts = stops.map(s => [s.lat, s.lon]);
+      L.polyline(pts, {color:'#2563EB', weight:5}).addTo(m);
+      stops.forEach((s,i) => L.circleMarker([s.lat, s.lon], {radius:5, color:'#2563EB', weight:3, fillColor:'#fff', fillOpacity:1}).addTo(m).bindPopup(`${i+1}. ${esc(s.name)}`));
+      m.fitBounds(L.latLngBounds(pts), {padding:[20,20]}); setTimeout(() => m.invalidateSize(), 60);
+    }
+    det.querySelectorAll('li[data-i]').forEach(li => li.addEventListener('click', async ev => {
+      const b = ev.target.closest('button[data-a]'); if (!b) return;
+      ev.stopPropagation();
+      const s = stops[+li.dataset.i], a = b.dataset.a;
+      if (a === 'from' || a === 'to'){
+        sel[a] = {label: s.name, place: `${s.lat},${s.lon}`, lat: s.lat, lon: s.lon};
+        $('#' + a).value = s.name;
+        try{ const st = await nearestStop(`${s.lat},${s.lon}`); if (st && Math.hypot((st.lat-s.lat)*111,(st.lon-s.lon)*78) < 0.4) sel[a].place = st.id; }catch(e){}
+        b.textContent = '✓'; setTimeout(() => b.textContent = a === 'from' ? 'Da qui' : 'A qui', 1500);
+        return;
+      }
+      const box = li.querySelector('.dep');
+      if (!box.hidden){ box.hidden = true; return; }
+      box.hidden = false; box.innerHTML = 'Carico le partenze…';
+      box.innerHTML = await departuresHtml(s, cd.dataset.ref);
+    }));
+  }catch(err){ det.dataset.done = ''; det.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+}
+async function departuresHtml(s, ref){
+  try{
+    const st = await nearestStop(`${s.lat},${s.lon}`);
+    if (!st) return 'Fermata non trovata negli orari.';
+    let data = null;
+    for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
+      const r = await fetch(`${API}/api/${ver}/stoptimes?stopId=${encodeURIComponent(st.id)}&n=30`).catch(() => null);
+      if (r && r.ok){ data = await r.json(); break; }
+    }
+    const list = (data && data.stopTimes) || [];
+    const norm = x => String(x || '').toLowerCase().replace(/\s/g, '');
+    const mine = list.filter(x => [x.routeShortName, x.displayName, x.tripShortName].some(v => norm(v) === norm(ref) || norm(v).startsWith(norm(ref) + ' ') || norm(v).split(/[^a-z0-9]/).includes(norm(ref))));
+    const show = (mine.length ? mine : list).slice(0, 8);
+    if (!show.length) return 'Nessuna partenza nelle prossime ore.';
+    return (mine.length ? '' : `<div style="color:var(--mute)">Nessuna corsa della linea ${esc(ref)} a breve; tutte le partenze da ${esc(st.name)}:</div>`) +
+      show.map(x => {
+        const p = x.place || {}, t = p.departure || p.arrival, sch = p.scheduledDeparture || p.scheduledArrival, d = delayMin(t, sch);
+        return `<div><b>${fmtT(t)}</b> ${esc(x.displayName || x.routeShortName || '')} → ${esc(x.headsign || '')}${p.track ? ` · bin. ${esc(p.track)}` : ''} ${x.cancelled || p.cancelled ? '<span class="canc">soppresso</span>' : x.realTime ? (d > 0 ? `<span class="late">+${d}′</span>` : '<span class="ontime">in orario</span>') : ''}</div>`;
+      }).join('');
+  }catch(e){ return 'Partenze non disponibili.'; }
+}
+
 function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}">${esc(t)}</div>`; }
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
