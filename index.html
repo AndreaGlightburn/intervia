@@ -31,7 +31,7 @@ input[type=text],input[type=date],input[type=time],select{width:100%;padding:10p
 .place .inwrap{display:flex;gap:6px}
 .place .inwrap input{flex:1}
 .ibtn{flex:0 0 auto;width:42px;border:1px solid var(--line);border-radius:10px;background:var(--pri2);cursor:pointer;font-size:18px}
-.sugg{position:absolute;left:0;right:0;top:100%;z-index:20;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:300px;overflow:auto;display:none}
+.sugg{position:absolute;left:0;right:0;top:100%;z-index:20;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:55vh;overflow:auto;display:none}
 .sugg div{padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer}
 .sugg div:last-child{border:0}
 .sugg div:hover,.sugg div.act{background:var(--pri2)}
@@ -146,7 +146,7 @@ footer a{color:var(--mute)}
   <div id="out"></div>
 </main>
 <footer>
-  Dati orari e percorsi: <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (servizio comunitario, dati GTFS aperti, © OpenStreetMap contributors).
+  Dati orari e percorsi: <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> · indirizzi: <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a> (servizio comunitario, dati GTFS aperti, © OpenStreetMap contributors).
   Orari e prezzi definitivi sul sito dell'operatore.
 </footer>
 
@@ -223,12 +223,55 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 function store(k, v){ try{ if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
 
 /* ---------- Ricerca luoghi ---------- */
-const sel = {from:null, to:null};   // {label, place}
-function placeLabel(m){
+// Fermate e stazioni: Transitous. Indirizzi, vie e luoghi: Photon (OpenStreetMap).
+const PHOTON = 'https://photon.komoot.io/api/';
+const ADDR_RE = /^\s*(via|viale|v\.le|piazza|p\.za|piazzale|p\.le|corso|c\.so|largo|vicolo|strada|str\.|alzaia|ripa|bastioni|galleria|lungo\w*|contrada|borgo|salita|rotonda)\b/i;
+const KIND_ICON = {STOP:'🚏', ADDRESS:'🏠', PLACE:'🏙️', POI:'📌'};
+const sel = {from:null, to:null};   // {label, place, lat, lon}
+function transitousItem(m){
   const area = (m.areas || []).find(a => a.default) || (m.areas || [])[0];
-  let sub = [m.street && (m.street + (m.houseNumber ? ' ' + m.houseNumber : '')), area && area.name].filter(Boolean);
-  if (sub[0] === m.name) sub.shift();
-  return {main:m.name, sub:sub.join(', '), kind:m.type};
+  const sub = [m.street && (m.street + (m.houseNumber ? ' ' + m.houseNumber : '')), area && area.name].filter(x => x && x !== m.name);
+  return {kind: m.type === 'STOP' ? 'STOP' : m.type === 'ADDRESS' ? 'ADDRESS' : 'PLACE', main: m.name, sub: sub.join(', '),
+          lat: m.lat, lon: m.lon, place: m.type === 'STOP' && m.id ? m.id : `${m.lat},${m.lon}`};
+}
+function photonItem(f){
+  const pr = f.properties || {}, [lon, lat] = f.geometry.coordinates;
+  let main = pr.name || '';
+  if (pr.housenumber && pr.street) main = `${pr.street} ${pr.housenumber}`;
+  else if (!main) main = pr.street || '';
+  const city = pr.city || pr.town || pr.village || pr.municipality || pr.county;
+  const sub = [pr.district && pr.district !== city ? pr.district : null, city, pr.state].filter(x => x && x !== main);
+  const kind = pr.osm_key === 'place' && pr.type !== 'street' && pr.type !== 'house' ? 'PLACE'
+             : (pr.type === 'house' || pr.type === 'street' || pr.osm_key === 'highway') ? 'ADDRESS' : 'POI';
+  return {kind, main, sub: sub.join(', '), lat, lon, place: `${lat},${lon}`};
+}
+function biasFor(key){
+  const other = sel[key === 'from' ? 'to' : 'from'];
+  if (other && other.lat != null) return other;
+  return store('intervia.bias');
+}
+async function geocode(q, signal, bias){
+  const enc = encodeURIComponent(q);
+  let pUrl = `${PHOTON}?q=${enc}&limit=12&bbox=6.6,35.4,18.6,47.1`;
+  if (bias && bias.lat != null) pUrl += `&lat=${bias.lat}&lon=${bias.lon}`;
+  const [t, p] = await Promise.allSettled([
+    fetch(`${API}/api/v1/geocode?text=${enc}&language=it`, {signal}).then(r => r.ok ? r.json() : []),
+    fetch(pUrl, {signal}).then(r => r.ok ? r.json() : {features: []})
+  ]);
+  if (signal.aborted) throw new DOMException('abort', 'AbortError');
+  if (t.status === 'rejected' && p.status === 'rejected') throw new Error('offline');
+  const stops = (t.value || []).map(transitousItem);
+  const addrs = ((p.value && p.value.features) || []).filter(f => f.geometry).map(photonItem);
+  const addrFirst = ADDR_RE.test(q) || q.includes(',') || /\d/.test(q);
+  const merged = addrFirst ? [...addrs, ...stops] : [...stops.slice(0, 5), ...addrs, ...stops.slice(5)];
+  const seen = new Set(), out = [];
+  for (const it of merged){
+    if (!it.main) continue;
+    const k = (it.main + '|' + it.sub).toLowerCase();
+    if (seen.has(k)) continue;           // Photon restituisce più tratti della stessa via
+    seen.add(k); out.push(it);
+  }
+  return out.slice(0, 14);
 }
 function setupPlace(key){
   const box = $('#p-' + key), inp = box.querySelector('input'), list = box.querySelector('.sugg');
@@ -242,22 +285,18 @@ function setupPlace(key){
     timer = setTimeout(async () => {
       try{
         ctrl?.abort(); ctrl = new AbortController();
-        const r = await fetch(`${API}/api/v1/geocode?text=${encodeURIComponent(q)}&language=it`, {signal:ctrl.signal});
-        if (!r.ok) throw new Error(r.status);
-        items = (await r.json()).slice(0, 8);
-        list.innerHTML = items.length ? items.map((m,i) => {
-          const l = placeLabel(m);
-          const ic = l.kind === 'STOP' ? '🚏' : l.kind === 'ADDRESS' ? '🏠' : '📌';
-          return `<div data-i="${i}">${ic} ${esc(l.main)}<small>${esc(l.sub)}</small></div>`;
-        }).join('') : '<div>Nessun risultato</div>';
-        list.style.display = 'block';
+        items = await geocode(q, ctrl.signal, biasFor(key));
+        list.innerHTML = items.length ? items.map((m,i) =>
+          `<div data-i="${i}">${KIND_ICON[m.kind] || '📌'} ${esc(m.main)}<small>${esc(m.sub)}</small></div>`
+        ).join('') : '<div>Nessun risultato. Prova ad aggiungere la città, es. "via Magenta, Milano"</div>';
+        list.style.display = 'block'; list.scrollTop = 0;
       }catch(e){ if (e.name !== 'AbortError'){ list.innerHTML = '<div>Ricerca non disponibile</div>'; list.style.display='block'; } }
     }, 350);
   });
   const pick = i => {
     const m = items[i]; if (!m) return;
-    const l = placeLabel(m);
-    sel[key] = {label: l.main + (l.sub ? ', ' + l.sub : ''), place: m.type === 'STOP' && m.id ? m.id : `${m.lat},${m.lon}`};
+    sel[key] = {label: m.main + (m.sub ? ', ' + m.sub : ''), place: m.place, lat: m.lat, lon: m.lon};
+    store('intervia.bias', {lat: m.lat, lon: m.lon});
     inp.value = sel[key].label; close();
   };
   list.addEventListener('mousedown', e => { const d = e.target.closest('[data-i]'); if (d){ e.preventDefault(); pick(+d.dataset.i); } });
@@ -278,7 +317,8 @@ $('#gps').onclick = () => {
   if (!navigator.geolocation) return showMsg('Posizione non disponibile su questo dispositivo.', true);
   $('#from').value = 'Rilevo la posizione…';
   navigator.geolocation.getCurrentPosition(p => {
-    sel.from = {label:'La mia posizione', place:`${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`};
+    sel.from = {label:'La mia posizione', place:`${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`, lat:p.coords.latitude, lon:p.coords.longitude};
+    store('intervia.bias', {lat:p.coords.latitude, lon:p.coords.longitude});
     $('#from').value = sel.from.label;
   }, () => { $('#from').value = ''; showMsg('Non riesco a leggere la posizione: controlla i permessi.', true); }, {enableHighAccuracy:true, timeout:10000});
 };
