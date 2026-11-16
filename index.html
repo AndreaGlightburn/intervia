@@ -322,7 +322,7 @@ footer a{color:var(--mute)}
 
 <script>
 'use strict';
-const APP_VERSION = '2.3.1', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
+const APP_VERSION = '2.4.0', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -384,6 +384,49 @@ function ticketLinks(leg){
   if (leg.agencyUrl) return [{label:'🌐 Sito dell\'operatore' + (agency ? ' · ' + agency : ''), url:leg.agencyUrl, main:true}];
   if (agency) return [{label:'🔎 Cerca il sito di ' + agency, url:'https://www.google.com/search?q=' + encodeURIComponent(agency + ' biglietti'), main:false}];
   return [];
+}
+
+/* ---------- Aziende di trasporto: siti ufficiali noti ---------- */
+const OPERATORS = [
+  [/trenord/i, 'Trenord', 'https://www.trenord.it/'], [/trenitalia/i, 'Trenitalia', 'https://www.trenitalia.com/'], [/italo|\bntv\b/i, 'Italo', 'https://www.italotreno.com/'],
+  [/\batm\b|azienda trasporti milanesi/i, 'ATM Milano', 'https://www.atm.it/'], [/movibus/i, 'Movibus', 'https://www.movibus.it/'], [/\bstav\b/i, 'STAV', 'https://www.stavautolinee.it/'],
+  [/autoguidovie/i, 'Autoguidovie', 'https://autoguidovie.it/'], [/\batb\b/i, 'ATB Bergamo', 'https://www.atb.bergamo.it/'], [/brescia mobilit/i, 'Brescia Mobilità', 'https://www.bresciamobilita.it/'],
+  [/\basf\b/i, 'ASF Autolinee (Como)', 'https://www.asfautolinee.it/'], [/linee lecco/i, 'Linee Lecco', 'https://www.lineelecco.it/'],
+  [/tpl ?fvg/i, 'TPL FVG', 'https://tplfvg.it/'], [/arriva udine|\bsaf\b/i, 'Arriva Udine (TPL FVG)', 'https://tplfvg.it/'], [/trieste trasporti/i, 'Trieste Trasporti (TPL FVG)', 'https://tplfvg.it/'],
+  [/atap/i, 'ATAP Pordenone (TPL FVG)', 'https://tplfvg.it/'], [/\bapt\b/i, 'APT Gorizia (TPL FVG)', 'https://tplfvg.it/'],
+  [/\bgtt\b/i, 'GTT Torino', 'https://www.gtt.to.it/'], [/\bamt\b.*genova|amt genova/i, 'AMT Genova', 'https://www.amt.genova.it/'], [/\batv\b/i, 'ATV Verona', 'https://www.atv.verona.it/'],
+  [/\bactv\b|avm/i, 'ACTV Venezia', 'https://actv.avmspa.it/'], [/\btper\b/i, 'Tper (Bologna, Ferrara)', 'https://www.tper.it/'], [/start romagna/i, 'Start Romagna', 'https://www.startromagna.it/'],
+  [/\bseta\b/i, 'SETA (Modena, Reggio, Piacenza)', 'https://www.setaweb.it/'], [/\btep\b/i, 'TEP Parma', 'https://www.tep.pr.it/'],
+  [/trentino trasporti/i, 'Trentino Trasporti', 'https://www.trentinotrasporti.it/'], [/\bsasa\b/i, 'SASA Bolzano', 'https://www.sasabz.it/'],
+  [/\batac\b/i, 'ATAC Roma', 'https://www.atac.roma.it/'], [/cotral/i, 'Cotral', 'https://www.cotralspa.it/'], [/\banm\b/i, 'ANM Napoli', 'https://www.anm.it/'],
+  [/\bamat\b/i, 'AMAT Palermo', 'https://www.amat.pa.it/'], [/\bamts\b/i, 'AMTS Catania', 'https://www.amts.ct.it/'], [/\bctm\b/i, 'CTM Cagliari', 'https://www.ctmcagliari.it/'],
+  [/busitalia/i, 'Busitalia', 'https://www.fsbusitalia.it/'], [/flixbus/i, 'FlixBus', 'https://www.flixbus.it/'], [/itabus/i, 'Itabus', 'https://www.itabus.it/'],
+  [/arriva/i, 'Arriva Italia', 'https://arriva.it/'],
+];
+// Restituisce il sito dell'azienda: elenco noto → sito indicato nei dati → solo un link di ricerca (dichiarato come tale)
+function agencySite(name, url){
+  for (const [re, label, site] of OPERATORS) if (re.test(name || '')) return {label, url: site, kind: 'noto'};
+  if (url && /^https?:\/\//i.test(url)) return {label: name, url, kind: 'dati'};
+  return {label: name, url: 'https://www.google.com/search?q=' + encodeURIComponent(name + ' trasporto pubblico orari'), kind: 'ricerca'};
+}
+function renderAgencies(box, list){
+  // list: [{name, url, lines:Set, timetable:boolean}]
+  const merged = new Map();
+  for (const a of list){
+    if (!a.name) continue;
+    const site = agencySite(a.name, a.url), k = site.kind === 'ricerca' ? 'n:' + a.name.toLowerCase() : 'u:' + site.url + '|' + site.label;
+    if (!merged.has(k)) merged.set(k, {site, names: new Set(), lines: new Set(), timetable: false});
+    const m = merged.get(k); m.names.add(a.name); (a.lines || []).forEach(l => m.lines.add(l)); m.timetable = m.timetable || a.timetable;
+  }
+  const items = [...merged.values()].sort((a,b) => b.lines.size - a.lines.size);
+  if (!items.length){ box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="sec">🏢 Aziende di trasporto · ${items.length}</div><div class="card" style="padding:4px 12px">${items.map(m => {
+    const lines = [...m.lines].sort(natCmp);
+    return `<div style="padding:9px 0;border-bottom:1px dashed var(--line)">
+      <b>${esc(m.site.label)}</b>${m.names.size && ![...m.names].includes(m.site.label) ? ` <span style="color:var(--mute);font-size:12px">(${esc([...m.names].join(', '))})</span>` : ''}
+      <div class="sub" style="font-size:12px;color:var(--mute)">${m.timetable ? '🕒 orari disponibili nell\'app' : '⚠️ orari non disponibili nell\'app: consultali sul sito'}${lines.length ? ' · linee ' + esc(lines.slice(0, 12).join(', ')) + (lines.length > 12 ? '…' : '') : ''}</div>
+      <div class="live" style="margin-top:4px"><a href="${esc(m.site.url)}" target="_blank" rel="noopener">${m.site.kind === 'ricerca' ? '🔎 Cerca il sito' : '🌐 Sito ufficiale'}</a></div></div>`;
+  }).join('')}</div>`;
 }
 
 /* ---------- Stato in tempo reale ---------- */
@@ -1129,7 +1172,7 @@ async function cachedGet(key, fetcher, {force = false, fresh = DAY} = {}){
   if (v != null) lcSet(key, v);
   return {v, t: Date.now(), cached: false};
 }
-const TAGS_KEEP = ['ref','name','from','to','colour','route','operator','network'];
+const TAGS_KEEP = ['ref','name','from','to','colour','route','operator','network','website','operator:website','network:website'];
 const compactRels = els => (els || []).filter(x => x.type === 'relation' && x.tags).map(x => {
   const tags = {}; TAGS_KEEP.forEach(k => { if (x.tags[k]) tags[k] = x.tags[k]; });
   return {type:'relation', id: x.id, tags, center: x.center};
@@ -1458,7 +1501,7 @@ async function routesFromStops(stops, {signal, onProgress, n = 50} = {}){
           for (const x of (d.stopTimes || [])){
             const name = lineNameOf(x) || '?', group = modeGroup(x.mode, ver);
             const key = name + '|' + group + '|' + (x.agencyName || '');
-            if (!routes.has(key)) routes.set(key, {name, group, color: x.routeColor, textColor: x.routeTextColor, agency: x.agencyName || '', dirs: {}});
+            if (!routes.has(key)) routes.set(key, {name, group, color: x.routeColor, textColor: x.routeTextColor, agency: x.agencyName || '', agencyUrl: x.agencyUrl || '', dirs: {}});
             const rt = routes.get(key), hs = x.headsign || '—';
             if (!rt.dirs[hs] && x.tripId) rt.dirs[hs] = x.tripId;
           }
@@ -2083,7 +2126,9 @@ function renderCityTT(res, city){
       <div id="citymoremsg" class="sub" role="status" style="font-size:13px;margin-top:4px"></div></div>` +
     groups.map((g, gi) => `<div class="sec">${g.title} · ${g.lines.length}</div><div class="card"><div class="chips">${g.lines.map((r, li) =>
       `<span class="chip" data-g="${gi}" data-l="${li}" ${r.color ? `style="border-color:#${esc(r.color)};box-shadow:inset 4px 0 0 #${esc(r.color)}"` : ''} title="${esc(r.agency)}">${esc(r.name.length > 22 ? r.name.slice(0, 20) + '…' : r.name)}</span>`).join('')}</div></div>`).join('') +
-    '<div id="cityosm"></div><div id="cityline"></div>';
+    '<div id="cityosm"></div><div id="cityag"></div><div id="cityline"></div>';
+  cityAgencies = [...new Set(routes.map(r => r.agency))].map(a => ({name: a, url: (routes.find(r => r.agency === a) || {}).agencyUrl, lines: routes.filter(r => r.agency === a).map(r => r.name), timetable: true}));
+  renderAgencies($('#cityag'), cityAgencies);
   osmExtras(res.v, city, routes);
   $('#cityref').onclick = e => { e.preventDefault(); runCityLines(city, true); };
   out.querySelectorAll('.chip[data-g]').forEach(ch => ch.onclick = () => {
@@ -2104,6 +2149,7 @@ function renderCityTT(res, city){
     }catch(e){ msg.textContent = 'Lettura non riuscita: ' + e.message; btn.disabled = false; }
   });
 }
+let cityAgencies = [];
 // Linee presenti in OpenStreetMap ma assenti dagli orari (es. aziende i cui orari non sono nei dati aperti)
 const OSM2TT = {subway:'metro', monorail:'metro', tram:'tram', light_rail:'tram', bus:'bus', trolleybus:'bus', share_taxi:'bus', train:'treno', coach:'pullman', ferry:'traghetto'};
 async function osmExtras(v, city, ttRoutes){
@@ -2124,6 +2170,12 @@ async function osmExtras(v, city, ttRoutes){
       byRef.get(k).rels.push(x);
     }
     const extra = [...byRef.values()].sort((a,b) => TT_GROUPS.findIndex(t => t[0] === a.g) - TT_GROUPS.findIndex(t => t[0] === b.g) || natCmp(a.ref, b.ref));
+    // aziende delle linee senza orari
+    const osmAg = new Map();
+    extra.forEach(e => e.rels.forEach(x => { const n = x.tags.operator || x.tags.network; if (!n) return;
+      if (!osmAg.has(n)) osmAg.set(n, {name: n, url: x.tags['operator:website'] || x.tags['network:website'] || x.tags.website, lines: [], timetable: false});
+      osmAg.get(n).lines.push(e.ref); }));
+    if ($('#cityag')) renderAgencies($('#cityag'), cityAgencies.concat([...osmAg.values()]));
     if (!extra.length){ $('#cityosm').innerHTML = ''; return; }
     $('#cityosm').innerHTML = `<div class="sec">🗺️ Altre linee note a OpenStreetMap · ${extra.length}</div>
       <div class="card"><div class="sub" style="font-size:13px;margin-bottom:8px">Queste linee esistono ma <b>i loro orari non sono nei dati aperti</b> usati dall'app: puoi vedere percorso e fermate, non gli orari, e non compaiono nel calcolo dei percorsi.</div>

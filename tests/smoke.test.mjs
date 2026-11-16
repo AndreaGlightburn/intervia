@@ -270,7 +270,7 @@ await test('città: linee note solo a OpenStreetMap mostrate a parte come "senza
     if (u.includes('/stoptimes')) return json(w, { stopTimes: [{ mode: 'BUS', routeShortName: '1', headsign: 'Ospedale', tripId: 't1', agencyName: 'X' }, { mode: 'REGIONAL_RAIL', displayName: 'R 20871', headsign: 'Trieste', tripId: 't3' }] });
     if (u.includes('api.php')) return json(w, { ok: true, elements: [
       { type: 'relation', id: 1, tags: { route: 'bus', ref: '1', name: 'Linea 1' } },
-      { type: 'relation', id: 2, tags: { route: 'bus', ref: 'T', name: 'Linea T - Giro Nord' } },
+      { type: 'relation', id: 2, tags: { route: 'bus', ref: 'T', name: 'Linea T - Giro Nord', operator: 'TPL FVG', network: 'Arriva Udine' } },
       { type: 'relation', id: 3, tags: { route: 'bus', ref: 'T', name: 'Linea T - Giro Sud' } } ] });
     return json(w, []);
   });
@@ -279,6 +279,11 @@ await test('città: linee note solo a OpenStreetMap mostrate a parte come "senza
   assert.match(d.getElementById('cityosm').textContent, /orari non sono nei dati aperti/);
   d.querySelector('#cityosm .chip').click();
   assert.match(d.getElementById('cityline').textContent, /Linea T · 2 percorsi/);
+  const ag = d.getElementById('cityag');
+  assert.match(ag.textContent, /Aziende di trasporto · 2/);   // X (dagli orari) e TPL FVG (solo OpenStreetMap); il treno senza nome azienda non conta
+  assert.ok([...ag.querySelectorAll('a')].some(a => a.href === 'https://tplfvg.it/'), 'sito TPL FVG');
+  assert.match(ag.textContent, /orari non disponibili nell'app/);
+  assert.match(ag.textContent, /Cerca il sito/, 'azienda sconosciuta: solo link di ricerca dichiarato');
 });
 
 console.log(`\n${passed} passati, ${failed} falliti`);
