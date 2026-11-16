@@ -205,7 +205,8 @@ await test('linee di una città dagli orari (senza OpenStreetMap): linee, direzi
   assert.ok(await until(() => /2 linee/.test(d.getElementById('lout').textContent), 6000), d.getElementById('lout').textContent);
   const chips = [...d.querySelectorAll('#lout .chip[data-g]')].map(c => c.textContent);
   assert.ok(chips.includes('1') && chips.includes('R'), 'il numero del treno non diventa una linea: ' + chips);
-  assert.equal(overpassCalls, 0, 'OpenStreetMap non interrogato');
+  // OpenStreetMap viene interrogato solo dopo, in sottofondo, per le linee senza orari (qui fallisce: l'elenco resta)
+  assert.ok(await until(() => /OpenStreetMap non raggiungibile ora/.test(d.getElementById('lout').textContent), 8000));
   const ms = new URL(calls.find(u => u.includes('/map/stops'))).searchParams;
   const [minLat, minLon] = ms.get('min').split(',').map(Number), [maxLat, maxLon] = ms.get('max').split(',').map(Number);
   assert.ok(minLat < maxLat && minLon > maxLon, 'min = sud-est, max = nord-ovest come da documentazione MOTIS');
@@ -231,6 +232,53 @@ await test('"Cerca altre linee": legge altre fermate e aggiunge le linee nuove s
   assert.ok(await until(() => /40 linee/.test(d.getElementById('lout').textContent), 6000), d.getElementById('lout').textContent);
   assert.match(d.getElementById('lout').textContent, /Trovate 10 linee nuove/);
   assert.ok(!d.getElementById('citymore'), 'nessun pulsante quando non restano fermate');
+});
+
+await test('linea: corsa all\'orario scelto, successiva e orario di tutta la giornata', async () => {
+  // corse della linea 1 → Ospedale ogni ora dalle 05:00 alle 23:00 UTC del 16/11 (06:00–00:00 ora italiana)
+  const runs = Array.from({ length: 19 }, (_, i) => { const h = String(5 + i).padStart(2, '0'); return { mode: 'BUS', routeShortName: '1', headsign: 'Ospedale', tripId: 'r' + h, place: { departure: `2026-11-16T${h}:10:00Z` } }; });
+  const other = { mode: 'BUS', routeShortName: '2', headsign: 'Centro', tripId: 'x', place: { departure: '2026-11-16T09:00:00Z' } };
+  const { w, d } = await boot((u, o, w) => {
+    const q = new URL(u).searchParams;
+    if (u.includes('/stoptimes')) {
+      const t = Date.parse(q.get('time') || '2026-11-16T00:00:00Z');
+      return json(w, { stopTimes: [...runs, other].filter(x => Date.parse(x.place.departure) >= t).slice(0, +q.get('n')) });
+    }
+    if (u.includes('/trip?')) { const id = q.get('tripId'), h = id.slice(1);
+      return json(w, { legs: [{ tripId: id, mode: 'BUS', routeShortName: '1', headsign: 'Ospedale', from: { name: 'Stazione', stopId: 's0', lat: 46, lon: 13, departure: `2026-11-16T${h}:10:00Z`, scheduledDeparture: `2026-11-16T${h}:10:00Z` }, intermediateStops: [], to: { name: 'Ospedale', stopId: 's9', lat: 46.01, lon: 13.01, arrival: `2026-11-16T${h}:30:00Z` } }] }); }
+    return json(w, []);
+  });
+  // orario di riferimento: 16/11 ore 12:00 italiane (11:00 UTC)
+  w.eval(`refState.lines = romeISO('2026-11-16', '12:00')`);
+  w.eval(`window.__det = document.createElement('div'); document.body.appendChild(__det);
+    variantFromTrip('r06', {headsign:'Ospedale'}).then(v => openLineVariant(__det, v, '1'));`);
+  const det = () => w.__det;
+  assert.ok(await until(() => /Corsa delle 12:10/.test(det().textContent), 4000), det().textContent.slice(0, 200));
+  det().querySelector('[data-nav="1"]').click();
+  assert.ok(await until(() => /Corsa delle 13:10/.test(det().textContent), 4000), 'successiva: ' + det().textContent.slice(0, 120));
+  det().querySelector('[data-day]').click();
+  assert.ok(await until(() => /18 partenze/.test(det().textContent), 6000), det().textContent.slice(0, 300));   // la corsa delle 23:10 UTC è già il 17/11 in Italia
+  assert.equal(det().querySelectorAll('[data-run]').length, 18, 'solo la linea 1 verso Ospedale, solo il 16/11 ora italiana');
+  det().querySelector('[data-run="r20"]').click();
+  assert.ok(await until(() => /Corsa delle 21:10/.test(det().textContent), 4000));
+});
+
+await test('città: linee note solo a OpenStreetMap mostrate a parte come "senza orari"', async () => {
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('photon')) return json(w, { features: [{ geometry: { coordinates: [13.23, 46.06] }, properties: { osm_type: 'R', osm_id: 41, name: 'Udine', extent: [13.15, 46.10, 13.30, 46.02] } }] });
+    if (u.includes('/map/stops')) return json(w, [{ stopId: 's1', name: 'Stazione', lat: 46.06, lon: 13.23 }]);
+    if (u.includes('/stoptimes')) return json(w, { stopTimes: [{ mode: 'BUS', routeShortName: '1', headsign: 'Ospedale', tripId: 't1', agencyName: 'X' }, { mode: 'REGIONAL_RAIL', displayName: 'R 20871', headsign: 'Trieste', tripId: 't3' }] });
+    if (u.includes('api.php')) return json(w, { ok: true, elements: [
+      { type: 'relation', id: 1, tags: { route: 'bus', ref: '1', name: 'Linea 1' } },
+      { type: 'relation', id: 2, tags: { route: 'bus', ref: 'T', name: 'Linea T - Giro Nord' } },
+      { type: 'relation', id: 3, tags: { route: 'bus', ref: 'T', name: 'Linea T - Giro Sud' } } ] });
+    return json(w, []);
+  });
+  w.eval("runCityLines('Udine')");
+  assert.ok(await until(() => /Altre linee note a OpenStreetMap · 1/.test(d.getElementById('lout').textContent), 8000), d.getElementById('lout').textContent.slice(-400));
+  assert.match(d.getElementById('cityosm').textContent, /orari non sono nei dati aperti/);
+  d.querySelector('#cityosm .chip').click();
+  assert.match(d.getElementById('cityline').textContent, /Linea T · 2 percorsi/);
 });
 
 console.log(`\n${passed} passati, ${failed} falliti`);

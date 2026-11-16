@@ -1,7 +1,7 @@
 // Intervia – service worker
 // L'app si scarica sempre dalla rete scavalcando la cache del browser (cache: 'no-store');
 // la copia salvata serve solo senza connessione. I dati dei servizi esterni non passano di qui.
-const VERSION = '2.2.2';
+const VERSION = '2.3.1';
 const CACHE = 'intervia-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icons/intervia-icona.svg'];
 self.addEventListener('install', e => {
