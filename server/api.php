@@ -104,7 +104,7 @@ function vt($path, $ttl) {
 $a = $_GET['a'] ?? '';
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.3']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.4']);
 if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
     $res = [];
     foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
@@ -210,17 +210,63 @@ if ($a === 'strikes') {
 }
 
 /* ---------- Linee da OpenStreetMap (Overpass), con cache di un giorno ---------- */
-function overpass_q($ql) {
+// Dati OpenStreetMap: conservati senza scadenza; rinnovati in sottofondo dopo 7 giorni
+const OSM_FRESH = 7 * 86400;
+function osm_cache_file($ql) {
+    $dir = sys_get_temp_dir() . '/intervia_osm';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    // preferisce una cartella accanto allo script (sopravvive alla pulizia della cartella temporanea)
+    $local = __DIR__ . '/cache';
+    if (is_dir($local) || @mkdir($local, 0700)) {
+        if (!is_file($local . '/.htaccess')) @file_put_contents($local . '/.htaccess', "Require all denied\nDeny from all\n");
+        if (is_writable($local)) $dir = $local;
+    }
+    return $dir . '/' . sha1($ql) . '.json';
+}
+function overpass_fetch($ql) {
     global $LAST_ERR;
     $errs = [];
+    $timeout = strpos($ql, 'area') !== false ? 130 : 55;
     foreach (['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'] as $srv) {
         $LAST_ERR = '';
-        $r = fetch_url($srv . '?data=' . rawurlencode($ql), 86400, strpos($ql, 'area') !== false ? 130 : 55);
+        $r = fetch_url($srv . '?data=' . rawurlencode($ql), 0, $timeout);
         if ($r !== false) { $j = json_decode($r, true); if (is_array($j) && isset($j['elements'])) return $j; }
         $errs[] = parse_url($srv, PHP_URL_HOST) . ': ' . ($LAST_ERR ?: 'risposta non valida');
     }
     $LAST_ERR = implode(' · ', $errs);
     return false;
+}
+$OSM_DATE = null;
+function overpass_q($ql) {
+    global $OSM_DATE;
+    $file = osm_cache_file($ql);
+    $force = !empty($_GET['fresh']);
+    if (is_file($file)) {
+        $age = time() - filemtime($file);
+        // "Aggiorna ora": consentito al massimo una volta l'ora per non sovraccaricare OpenStreetMap
+        if (!$force || $age < 3600) {
+            $j = json_decode(file_get_contents($file), true);
+            if (is_array($j)) {
+                $OSM_DATE = date('c', filemtime($file));
+                if ($age > OSM_FRESH && function_exists('fastcgi_finish_request')) {
+                    register_shutdown_function(function () use ($ql, $file) {
+                        fastcgi_finish_request(); ignore_user_abort(true); @set_time_limit(180);
+                        $n = overpass_fetch($ql);
+                        if ($n !== false) @file_put_contents($file, json_encode($n, JSON_UNESCAPED_UNICODE));
+                    });
+                }
+                return $j;
+            }
+        }
+    }
+    $j = overpass_fetch($ql);
+    if ($j === false) {
+        if (is_file($file)) { $old = json_decode(file_get_contents($file), true); if (is_array($old)) { $OSM_DATE = date('c', filemtime($file)); return $old; } }
+        return false;
+    }
+    @file_put_contents($file, json_encode($j, JSON_UNESCAPED_UNICODE));
+    $OSM_DATE = date('c');
+    return $j;
 }
 if ($a === 'lines') {
     $refs = [];
@@ -238,14 +284,14 @@ if ($a === 'lines') {
     foreach ($refs as $r) $parts .= 'relation["type"="route"]["ref"="' . str_replace('"', '', $r) . '"](' . $bbs . ');';
     $j = overpass_q('[out:json][timeout:50];(' . $parts . ');out tags center;');
     if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
-    out(['ok' => true, 'elements' => $j['elements']]);
+    out(['ok' => true, 'elements' => $j['elements'], 'date' => $OSM_DATE]);
 }
 if ($a === 'line') {
     $id = preg_replace('/\D/', '', $_GET['id'] ?? '');
     if ($id === '') fail('Parametri non validi', 400);
     $j = overpass_q('[out:json][timeout:50];relation(' . $id . ')->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;');
     if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
-    out(['ok' => true, 'elements' => $j['elements']]);
+    out(['ok' => true, 'elements' => $j['elements'], 'date' => $OSM_DATE]);
 }
 
 if ($a === 'citylines') {
@@ -258,7 +304,7 @@ if ($a === 'citylines') {
     else fail('Parametri non validi', 400);
     $j = overpass_q('[out:json][timeout:120];' . $sel . 'relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;');
     if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
-    out(['ok' => true, 'elements' => $j['elements']]);
+    out(['ok' => true, 'elements' => $j['elements'], 'date' => $OSM_DATE]);
 }
 
 fail('Azione non valida', 400);

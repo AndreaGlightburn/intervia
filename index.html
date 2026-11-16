@@ -882,11 +882,46 @@ async function overpass(q){
   }
   throw new Error(last);
 }
-async function osmLines(refs, bb){
-  try{ const j = await withTimeout(bridgeGet({a:'lines', refs: refs.join(','), bbox: bb}), 60000); return {elements: j.elements}; }
-  catch(e){ console.warn('ponte linee', e); }
-  return overpass(`[out:json][timeout:20];(${refs.map(r => `relation["type"="route"]["ref"="${r.replace(/"/g, '')}"](${bb});`).join('')});out tags center;`);
+/* ---------- Memoria sul telefono per i dati che cambiano di rado ---------- */
+const LC = 'intervia.c.', DAY = 86400e3;
+function lcGet(k){ try{ return JSON.parse(localStorage.getItem(LC + k)); }catch(e){ return null; } }
+function lcSet(k, v){
+  const val = JSON.stringify({t: Date.now(), v});
+  for (let tries = 0; tries < 4; tries++){
+    try{ localStorage.setItem(LC + k, val); return; }
+    catch(e){   // memoria piena: elimina le voci più vecchie
+      const keys = []; for (let i = 0; i < localStorage.length; i++){ const kk = localStorage.key(i); if (kk && kk.startsWith(LC)) keys.push(kk); }
+      if (!keys.length) return;
+      keys.map(kk => { let t = 0; try{ t = JSON.parse(localStorage.getItem(kk)).t; }catch(e){} return [kk, t]; })
+        .sort((a,b) => a[1] - b[1]).slice(0, Math.max(1, Math.ceil(keys.length / 3))).forEach(([kk]) => localStorage.removeItem(kk));
+    }
+  }
 }
+// Restituisce subito il dato salvato; se ha più di un giorno lo rinnova in sottofondo
+async function cachedGet(key, fetcher, {force = false, fresh = DAY} = {}){
+  const c = force ? null : lcGet(key);
+  if (c && c.v != null){
+    if (Date.now() - c.t > fresh) fetcher(false).then(v => { if (v != null) lcSet(key, v); }).catch(() => {});
+    return {v: c.v, t: c.t, cached: true};
+  }
+  const v = await fetcher(force);
+  if (v != null) lcSet(key, v);
+  return {v, t: Date.now(), cached: false};
+}
+const TAGS_KEEP = ['ref','name','from','to','colour','route','operator','network'];
+const compactRels = els => (els || []).filter(x => x.type === 'relation' && x.tags).map(x => {
+  const tags = {}; TAGS_KEEP.forEach(k => { if (x.tags[k]) tags[k] = x.tags[k]; });
+  return {type:'relation', id: x.id, tags, center: x.center};
+});
+async function osmLines(refs, bb){
+  const r = await cachedGet('lines:' + refs.join(',') + '@' + bb, async force => {
+    try{ const j = await withTimeout(bridgeGet({a:'lines', refs: refs.join(','), bbox: bb, ...(force ? {fresh: 1} : {})}), 60000); return compactRels(j.elements); }
+    catch(e){ console.warn('ponte linee', e); }
+    return compactRels((await overpass(`[out:json][timeout:20];(${refs.map(r => `relation["type"="route"]["ref"="${r.replace(/"/g, '')}"](${bb});`).join('')});out tags center;`)).elements);
+  });
+  return {elements: r.v};
+}
+const fmtDay = t => new Date(t).toLocaleDateString('it-IT', {day:'numeric', month:'short', year:'numeric'});
 async function osmLine(id){
   try{ const j = await withTimeout(bridgeGet({a:'line', id}), 60000); return {elements: j.elements}; }
   catch(e){ console.warn('ponte linea', e); }
@@ -1074,6 +1109,7 @@ async function loadLine(cd){
   det.dataset.done = '1'; det.innerHTML = '<div class="sub">Carico le fermate…</div>';
   try{
     const id = cd.dataset.id;
+    const res = await cachedGet('line:' + id, async () => {
     const data = await osmLine(id);
     const rel = data.elements.find(x => x.type === 'relation');
     const byId = {}; data.elements.forEach(x => { if (x.type !== 'relation') byId[x.type + x.id] = x; });
@@ -1087,6 +1123,9 @@ async function loadLine(cd){
     const plats = pick('platform');
     if (plats.length > stops.length) stops = plats;
     stops = stops.filter((s, i, a) => i === 0 || s.name !== a[i-1].name);
+    return stops.length ? stops : null;
+    });
+    const stops = res.v || [];
     if (!stops.length){ det.innerHTML = '<div class="sub">Fermate non disponibili per questo percorso nei dati OpenStreetMap.</div>'; return; }
     const op = cd.dataset.op, route = cd.dataset.route;
     const liveL = [];
@@ -1470,26 +1509,31 @@ function renderCityFavs(){
   $('#favcities').querySelectorAll('button').forEach(b => b.onclick = () => { $('#cityq').value = b.dataset.c; runCityLines(b.dataset.c); });
 }
 renderCityFavs();
-async function runCityLines(city){
+async function fetchCityLines(city, force){
+  let areaId = null, label = city;
+  try{
+    const r = await withTimeout(fetch(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`), 8000);
+    const f = ((await r.json()).features || []).find(x => x.properties?.osm_type === 'R');
+    if (f){ areaId = 3600000000 + f.properties.osm_id; label = f.properties.name || city; }
+  }catch(e){}
+  let els;
+  try{ els = (await withTimeout(bridgeGet({...(areaId ? {a:'citylines', area: areaId} : {a:'citylines', name: city}), ...(force ? {fresh: 1} : {})}), 150000)).elements; }
+  catch(e){
+    const sel = areaId ? `area(${areaId})->.a;` : `area["name"="${city.replace(/"/g, '')}"]["boundary"="administrative"]["admin_level"~"^(7|8)$"]->.a;`;
+    els = (await overpass(`[out:json][timeout:60];${sel}relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;`)).elements;
+  }
+  els = compactRels(els);
+  return els.length ? {label, els} : null;
+}
+async function runCityLines(city, force){
   if (!city) return;
   const out = $('#lout'), btn = $('#citygo'); btn.disabled = true;
-  out.innerHTML = `<div class="msg">Cerco tutte le linee di ${esc(city)}… per una grande città la prima volta può richiedere fino a due minuti, poi è immediata.</div>`;
+  const key = 'city:' + city.toLowerCase().trim();
+  if (force || !lcGet(key)) out.innerHTML = `<div class="msg">Cerco tutte le linee di ${esc(city)}… per una grande città la prima volta può richiedere fino a due minuti; poi resta salvata sul telefono.</div>`;
   try{
-    // individua il comune (confine amministrativo) con Photon
-    let areaId = null, center = null, label = city;
-    try{
-      const r = await withTimeout(fetch(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`), 8000);
-      const f = ((await r.json()).features || []).find(x => x.properties?.osm_type === 'R');
-      if (f){ areaId = 3600000000 + f.properties.osm_id; center = {lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0]}; label = f.properties.name || city; }
-    }catch(e){}
-    let els;
-    try{ els = (await withTimeout(bridgeGet(areaId ? {a:'citylines', area: areaId} : {a:'citylines', name: city}), 150000)).elements; }
-    catch(e){
-      const sel = areaId ? `area(${areaId})->.a;` : `area["name"="${city.replace(/"/g, '')}"]["boundary"="administrative"]["admin_level"~"^(7|8)$"]->.a;`;
-      els = (await overpass(`[out:json][timeout:60];${sel}relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;`)).elements;
-    }
-    els = (els || []).filter(x => x.tags);
-    if (!els.length){ out.innerHTML = `<div class="msg">Nessuna linea trovata a ${esc(label)} nei dati OpenStreetMap. Controlla il nome del comune (es. "Aquileia").</div>`; return; }
+    const res = await cachedGet(key, f => fetchCityLines(city, f || force), {force});
+    if (!res.v){ out.innerHTML = `<div class="msg">Nessuna linea trovata a ${esc(city)} nei dati OpenStreetMap. Controlla il nome del comune (es. "Aquileia").</div>`; return; }
+    const label = res.v.label, els = res.v.els, center = null;
     let cl = (store('intervia.cities') || []).filter(x => x.toLowerCase() !== label.toLowerCase()); cl.unshift(label); store('intervia.cities', cl.slice(0, 8)); renderCityFavs();
     // raggruppa: tipo di mezzo → nome linea → percorsi (direzioni)
     cityLines = {label, center, groups: []};
@@ -1503,11 +1547,13 @@ async function runCityLines(city){
       if (byRef.size) cityLines.groups.push({key, title, lines: [...byRef.entries()].sort((a,b) => natCmp(a[0], b[0]))});
     }
     const tot = cityLines.groups.reduce((n, g) => n + g.lines.length, 0);
-    out.innerHTML = `<div class="msg" style="margin-bottom:6px"><b>${esc(label)}</b>: ${tot} linee che passano nel comune. Tocca una linea per vedere percorsi e fermate.</div>` +
+    out.innerHTML = `<div class="msg" style="margin-bottom:6px"><b>${esc(label)}</b>: ${tot} linee che passano nel comune. Tocca una linea per vedere percorsi e fermate.
+      <br><small style="color:var(--mute)">📦 Elenco salvato sul telefono il ${fmtDay(res.t)}${res.cached ? ' (si aggiorna da solo in sottofondo)' : ''} · <a href="#" id="cityref">↻ Aggiorna ora</a></small></div>` +
       cityLines.groups.map((g, gi) => `<div class="sec">${g.title} · ${g.lines.length}</div><div class="card"><div class="chips">${g.lines.map(([ref, rels], li) => {
         const t = rels[0].tags, col = t.colour && /^#?[0-9a-f]{3,6}$/i.test(t.colour) ? (t.colour[0] === '#' ? t.colour : '#' + t.colour) : null;
         return `<span class="chip" data-g="${gi}" data-l="${li}" ${col ? `style="border-color:${esc(col)};box-shadow:inset 4px 0 0 ${esc(col)}"` : ''} title="${esc(t.name || '')}">${esc(ref.length > 22 ? ref.slice(0, 20) + '…' : ref)}</span>`;
       }).join('')}</div></div>`).join('') + '<div id="cityline"></div>';
+    $('#cityref').onclick = e => { e.preventDefault(); runCityLines(city, true); };
     out.querySelectorAll('.chip[data-g]').forEach(ch => ch.onclick = () => {
       out.querySelectorAll('.chip[data-g]').forEach(x => x.classList.toggle('on', x === ch));
       showCityLine(cityLines.groups[+ch.dataset.g].lines[+ch.dataset.l]);
