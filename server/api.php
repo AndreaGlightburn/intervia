@@ -152,16 +152,43 @@ if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heav
 housekeeping();
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.2']);
-if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
-    $res = ['max_execution_time' => ini_get('max_execution_time') . ' s', 'outbound' => ini_get('allow_url_fopen') ? 'allow_url_fopen on' : 'allow_url_fopen off'];
-    foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
-              'rfi' => 'https://www.rfi.it/content/rfi/it/news-e-media/infomobilita.rss.updates.xml', 'mit' => 'https://scioperi.mit.gov.it/mit2/public/scioperi',
-              'overpass_de' => 'https://overpass-api.de/api/interpreter?data=' . rawurlencode('[out:json][timeout:10];node(1);out;'),
-              'overpass_kumi' => 'https://overpass.kumi.systems/api/interpreter?data=' . rawurlencode('[out:json][timeout:10];node(1);out;')] as $k => $u) {
-        $LAST_ERR = ''; $t0 = microtime(true); $r = fetch_url($u, 0, 20);
-        $res[$k] = ($r === false ? 'ERRORE: ' . $LAST_ERR : 'ok (' . strlen($r) . ' byte)') . ' in ' . round(microtime(true) - $t0, 1) . ' s';
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.3']);
+if ($a === 'diag') {   // verifica in PARALLELO se il server raggiunge le fonti (risposta entro ~10 s)
+    @set_time_limit(30);
+    $q = rawurlencode('[out:json][timeout:5];node(1);out;');
+    $targets = [
+        'viaggiatreno_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
+        'viaggiatreno_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
+        'rfi' => 'https://www.rfi.it/content/rfi/it/news-e-media/infomobilita.rss.updates.xml',
+        'mit' => 'https://scioperi.mit.gov.it/mit2/public/scioperi',
+        'overpass_de' => 'https://overpass-api.de/api/interpreter?data=' . $q,
+        'overpass_kumi' => 'https://overpass.kumi.systems/api/interpreter?data=' . $q,
+        'google (controllo generico)' => 'https://www.google.com/generate_204',
+    ];
+    $res = ['php' => PHP_VERSION, 'max_execution_time' => ini_get('max_execution_time') . ' s', 'curl' => function_exists('curl_multi_init') ? 'sì' : 'no'];
+    if (!function_exists('curl_multi_init')) out(['ok' => true, 'diag' => $res + ['nota' => 'cURL non disponibile: impossibile verificare']]);
+    $mh = curl_multi_init(); $hs = [];
+    foreach ($targets as $k => $u) {
+        $ch = curl_init($u);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 9,
+            CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '', CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS]);
+        curl_multi_add_handle($mh, $ch); $hs[$k] = $ch;
     }
+    $t0 = microtime(true);
+    $codes = [];
+    do {
+        curl_multi_exec($mh, $running);
+        while ($info = curl_multi_info_read($mh)) $codes[(int)$info['handle']] = $info['result'];
+        if ($running) curl_multi_select($mh, 0.5);
+    } while ($running && microtime(true) - $t0 < 11);
+    foreach ($hs as $k => $ch) {
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); $tt = round(curl_getinfo($ch, CURLINFO_TOTAL_TIME), 1);
+        $rc = $codes[(int)$ch] ?? null;
+        $err = $rc === null ? 'ancora in attesa dopo 11 s (connessione bloccata?)' : ($rc !== CURLE_OK ? curl_strerror($rc) : '');
+        $res[$k] = $code >= 200 && $code < 400 ? "ok (HTTP $code, {$tt} s)" : 'ERRORE: ' . ($err ?: ($code ? "HTTP $code" : 'nessuna risposta')) . " ({$tt} s)";
+        curl_multi_remove_handle($mh, $ch); curl_close($ch);
+    }
+    curl_multi_close($mh);
     out(['ok' => true, 'diag' => $res]);
 }
 
