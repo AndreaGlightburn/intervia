@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2545">
+<title>Intervia – mezzi pubblici da A a B</title>
+<meta name="description" content="Treni, bus, metro e tram: tutte le soluzioni da A a B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Intervia">
+<link rel="icon" type="image/svg+xml" href="icons/intervia-icona.svg">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1b2430;--mute:#667085;--pri:#2563EB;--navy:#0B2545;--pri2:#e8f0f9;--ok:#1a7f37;--warn:#b54708;--bad:#c0262d;--line:#e3e7ee;--r:14px}
+@media (prefers-color-scheme:dark){:root{--bg:#0f141a;--card:#18202a;--ink:#e8edf3;--mute:#98a2b3;--pri:#5aa2e6;--pri2:#1d2a39;--line:#2a3442}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{background:var(--navy);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px}
+header svg{width:52px;height:35px;flex:0 0 auto}
+header h1{margin:0;font-size:21px;letter-spacing:.2px}
+header p{margin:2px 0 0;font-size:12px;opacity:.85}
+main{max-width:720px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:12px}
+label{font-size:12px;color:var(--mute);display:block;margin:0 0 4px}
+input,select,button{font:inherit;color:inherit}
+input[type=text],input[type=date],input[type=time],select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row>*{flex:1}
+.place{position:relative;margin-bottom:10px}
+.place .inwrap{display:flex;gap:6px}
+.place .inwrap input{flex:1}
+.ibtn{flex:0 0 auto;width:42px;border:1px solid var(--line);border-radius:10px;background:var(--pri2);cursor:pointer;font-size:18px}
+.sugg{position:absolute;left:0;right:0;top:100%;z-index:20;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:300px;overflow:auto;display:none}
+.sugg div{padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+.sugg div:last-child{border:0}
+.sugg div:hover,.sugg div.act{background:var(--pri2)}
+.sugg small{display:block;color:var(--mute)}
+.swap{display:flex;justify-content:flex-end;margin:-6px 0 4px}
+.swap button{border:0;background:none;color:var(--pri);cursor:pointer;font-size:13px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;padding:9px;background:var(--bg);cursor:pointer}
+.seg button.on{background:var(--pri);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 11px;background:var(--bg);cursor:pointer;user-select:none;font-size:14px}
+.chip.on{background:var(--pri2);border-color:var(--pri);color:var(--pri);font-weight:600}
+.go{width:100%;padding:13px;border:0;border-radius:12px;background:var(--pri);color:#fff;font-weight:700;font-size:16px;cursor:pointer;margin-top:4px}
+.go:disabled{opacity:.6}
+.mt{margin-top:10px}
+.msg{padding:12px;border-radius:10px;background:var(--pri2);font-size:14px}
+.msg.err{background:#fde8e8;color:var(--bad)}
+@media (prefers-color-scheme:dark){.msg.err{background:#3a1b1d;color:#ffb4b4}}
+.it{cursor:pointer}
+.it .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.it .times{font-size:20px;font-weight:700}
+.it .dur{color:var(--mute);font-size:13px;text-align:right}
+.it .modes{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px;font-size:13px}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-weight:600;font-size:12px;background:var(--pri2);color:var(--pri)}
+.arrow{color:var(--mute)}
+.late{color:var(--warn);font-weight:600}
+.ontime{color:var(--ok)}
+.canc{color:var(--bad);font-weight:700}
+.det{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.it.open .det{display:block}
+.leg{display:grid;grid-template-columns:52px 1fr;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.leg:last-child{border:0}
+.leg .t{font-weight:700;font-size:14px}
+.leg .t small{display:block;font-weight:400;color:var(--mute)}
+.leg .what{font-size:14px}
+.leg .what b{font-size:15px}
+.leg .sub{color:var(--mute);font-size:13px}
+.leg.walk .what{color:var(--mute)}
+.tix{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tix a{font-size:13px;text-decoration:none;padding:5px 9px;border-radius:8px;border:1px solid var(--pri);color:var(--pri)}
+.tix a.main{background:var(--pri);color:#fff}
+.pager{display:flex;gap:8px}
+.pager button{flex:1;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer}
+.recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.recent button{font-size:12px;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 9px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+footer{font-size:11px;color:var(--mute);text-align:center;padding:10px 12px 30px}
+footer a{color:var(--mute)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <svg viewBox="64 128 384 256" aria-hidden="true"><path d="M96 352 H176 L336 160 H416" fill="none" stroke="#16A34A" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><path d="M96 160 H176 L336 352 H416" fill="none" stroke="#2563EB" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="256" r="46" fill="#fff" stroke="#06B6D4" stroke-width="18"/></svg>
+  <div><h1>Intervia</h1>
+  <p>Treni, bus, metro e tram: tutte le soluzioni da A a B</p></div>
+</header>
+<main>
+  <form class="card" id="f" autocomplete="off">
+    <div class="place" id="p-from">
+      <label for="from">Da</label>
+      <div class="inwrap">
+        <input type="text" id="from" placeholder="Stazione, fermata, indirizzo…">
+        <button type="button" class="ibtn" id="gps" title="Usa la mia posizione">📍</button>
+      </div>
+      <div class="sugg"></div>
+    </div>
+    <div class="swap"><button type="button" id="swap">⇅ Inverti</button></div>
+    <div class="place" id="p-to">
+      <label for="to">A</label>
+      <div class="inwrap"><input type="text" id="to" placeholder="Stazione, fermata, indirizzo…"></div>
+      <div class="sugg"></div>
+    </div>
+
+    <div class="seg mt" id="arrby">
+      <button type="button" class="on" data-v="0">Partenza alle</button>
+      <button type="button" data-v="1">Arrivo entro</button>
+    </div>
+    <div class="row mt">
+      <div><label for="date">Data</label><input type="date" id="date"></div>
+      <div><label for="time">Ora</label><input type="time" id="time"></div>
+    </div>
+
+    <div class="mt">
+      <label for="maxT">Cambi</label>
+      <select id="maxT">
+        <option value="">Qualsiasi numero di cambi</option>
+        <option value="0">Solo diretti (nessun cambio)</option>
+        <option value="1">Massimo 1 cambio</option>
+        <option value="2">Massimo 2 cambi</option>
+        <option value="3">Massimo 3 cambi</option>
+        <option value="4">Massimo 4 cambi</option>
+      </select>
+    </div>
+
+    <div class="mt">
+      <label>Mezzi</label>
+      <div class="chips" id="modes">
+        <span class="chip on" data-g="treno">🚆 Treni</span>
+        <span class="chip on" data-g="metro">🚇 Metro</span>
+        <span class="chip on" data-g="tram">🚊 Tram</span>
+        <span class="chip on" data-g="bus">🚌 Bus</span>
+        <span class="chip on" data-g="pullman">🚍 Pullman</span>
+        <span class="chip on" data-g="traghetto">⛴️ Traghetti</span>
+      </div>
+    </div>
+
+    <button class="go mt" id="go" type="submit">Cerca soluzioni</button>
+    <div class="recent" id="recent"></div>
+  </form>
+
+  <div id="out"></div>
+</main>
+<footer>
+  Dati orari e percorsi: <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (servizio comunitario, dati GTFS aperti, © OpenStreetMap contributors).
+  Orari e prezzi definitivi sul sito dell'operatore.
+</footer>
+
+<script>
+'use strict';
+const API = 'https://api.transitous.org';
+const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
+let planVer = null;           // versione funzionante, scoperta al primo uso
+const $ = s => document.querySelector(s);
+
+/* ---------- Mezzi ---------- */
+const RAIL = ['RAIL','HIGHSPEED_RAIL','LONG_DISTANCE','NIGHT_RAIL','REGIONAL_FAST_RAIL','REGIONAL_RAIL','SUBURBAN'];
+function modeGroup(m, ver){
+  if (RAIL.includes(m)) return 'treno';
+  if (m === 'METRO') return ver === 'v5' ? 'metro' : 'treno'; // in v3/v4 METRO = suburbano
+  if (m === 'SUBWAY') return 'metro';
+  if (m === 'TRAM' || m === 'CABLE_CAR') return 'tram';
+  if (m === 'BUS' || m === 'ODM') return 'bus';
+  if (m === 'COACH') return 'pullman';
+  if (m === 'FERRY') return 'traghetto';
+  if (m === 'WALK' || m === 'BIKE' || m === 'CAR' || m === 'RENTAL' || m === 'FLEX') return 'piedi';
+  return 'altro';
+}
+const ICON = {treno:'🚆',metro:'🚇',tram:'🚊',bus:'🚌',pullman:'🚍',traghetto:'⛴️',piedi:'🚶',altro:'🚡'};
+const NAME = {treno:'Treno',metro:'Metro',tram:'Tram',bus:'Bus',pullman:'Pullman',traghetto:'Traghetto',piedi:'A piedi',altro:'Mezzo'};
+function apiModes(groups, ver){
+  const m = [];
+  if (groups.includes('treno')) m.push('RAIL', ver === 'v5' ? 'SUBURBAN' : 'METRO');
+  if (groups.includes('metro')) m.push('SUBWAY');
+  if (groups.includes('tram'))  m.push('TRAM','CABLE_CAR');
+  if (groups.includes('bus'))   m.push('BUS');
+  if (groups.includes('pullman')) m.push('COACH');
+  if (groups.includes('traghetto')) m.push('FERRY');
+  m.push('FUNICULAR','AERIAL_LIFT');
+  return [...new Set(m)];
+}
+
+/* ---------- Link biglietti per operatore ---------- */
+const TICKETS = [
+  [/trenitalia|tper|busitalia/i, 'Trenitalia', 'https://www.trenitalia.com/'],
+  [/trenord/i, 'Trenord', 'https://www.trenord.it/'],
+  [/italo|\bntv\b/i, 'Italo', 'https://www.italotreno.com/'],
+  [/\batm\b|azienda trasporti milanesi/i, 'ATM Milano', 'https://www.atm.it/'],
+  [/movibus/i, 'Movibus', 'https://www.movibus.it/'],
+  [/autoguidovie/i, 'Autoguidovie', 'https://autoguidovie.it/'],
+  [/\bstav\b/i, 'STAV', 'https://www.stavautolinee.it/'],
+  [/flixbus/i, 'FlixBus', 'https://www.flixbus.it/'],
+  [/itabus/i, 'Itabus', 'https://www.itabus.it/'],
+  [/\bgtt\b/i, 'GTT Torino', 'https://www.gtt.to.it/'],
+  [/\batac\b/i, 'ATAC Roma', 'https://www.atac.roma.it/'],
+  [/\bactv\b|avm/i, 'ACTV Venezia', 'https://actv.avmspa.it/'],
+  [/\banm\b/i, 'ANM Napoli', 'https://www.anm.it/'],
+  [/\bamt\b/i, 'AMT Genova', 'https://www.amt.genova.it/'],
+  [/\batb\b/i, 'ATB Bergamo', 'https://www.atb.bergamo.it/'],
+  [/brescia mobilit/i, 'Brescia Mobilità', 'https://www.bresciamobilita.it/'],
+  [/arriva/i, 'Arriva', 'https://www.arriva.it/'],
+  [/sbb|cff|ffs/i, 'FFS/SBB', 'https://www.sbb.ch/it'],
+  [/tilo/i, 'TILO', 'https://www.tilo.ch/'],
+];
+function ticketLinks(leg){
+  const agency = leg.agencyName || '';
+  for (const [re, label, url] of TICKETS) if (re.test(agency)) return [{label:'Biglietto ' + label, url, main:true}];
+  if (leg.agencyUrl) return [{label:'Biglietto ' + (agency || 'operatore'), url:leg.agencyUrl, main:true}];
+  if (agency) return [{label:'Cerca biglietto ' + agency, url:'https://www.google.com/search?q=' + encodeURIComponent('biglietto ' + agency), main:false}];
+  return [];
+}
+
+/* ---------- Utilità ---------- */
+const fmtT = iso => iso ? new Date(iso).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}) : '–';
+const fmtD = iso => new Date(iso).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+function fmtDur(sec){ const m = Math.round(sec/60); if (m < 60) return m + ' min'; return Math.floor(m/60) + ' h ' + String(m%60).padStart(2,'0'); }
+function delayMin(real, sched){ if (!real || !sched) return 0; return Math.round((new Date(real) - new Date(sched))/60000); }
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function store(k, v){ try{ if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
+
+/* ---------- Ricerca luoghi ---------- */
+const sel = {from:null, to:null};   // {label, place}
+function placeLabel(m){
+  const area = (m.areas || []).find(a => a.default) || (m.areas || [])[0];
+  let sub = [m.street && (m.street + (m.houseNumber ? ' ' + m.houseNumber : '')), area && area.name].filter(Boolean);
+  if (sub[0] === m.name) sub.shift();
+  return {main:m.name, sub:sub.join(', '), kind:m.type};
+}
+function setupPlace(key){
+  const box = $('#p-' + key), inp = box.querySelector('input'), list = box.querySelector('.sugg');
+  let timer, ctrl, items = [], act = -1;
+  const close = () => { list.style.display = 'none'; act = -1; };
+  inp.addEventListener('input', () => {
+    sel[key] = null;
+    clearTimeout(timer);
+    const q = inp.value.trim();
+    if (q.length < 2) return close();
+    timer = setTimeout(async () => {
+      try{
+        ctrl?.abort(); ctrl = new AbortController();
+        const r = await fetch(`${API}/api/v1/geocode?text=${encodeURIComponent(q)}&language=it`, {signal:ctrl.signal});
+        if (!r.ok) throw new Error(r.status);
+        items = (await r.json()).slice(0, 8);
+        list.innerHTML = items.length ? items.map((m,i) => {
+          const l = placeLabel(m);
+          const ic = l.kind === 'STOP' ? '🚏' : l.kind === 'ADDRESS' ? '🏠' : '📌';
+          return `<div data-i="${i}">${ic} ${esc(l.main)}<small>${esc(l.sub)}</small></div>`;
+        }).join('') : '<div>Nessun risultato</div>';
+        list.style.display = 'block';
+      }catch(e){ if (e.name !== 'AbortError'){ list.innerHTML = '<div>Ricerca non disponibile</div>'; list.style.display='block'; } }
+    }, 350);
+  });
+  const pick = i => {
+    const m = items[i]; if (!m) return;
+    const l = placeLabel(m);
+    sel[key] = {label: l.main + (l.sub ? ', ' + l.sub : ''), place: m.type === 'STOP' && m.id ? m.id : `${m.lat},${m.lon}`};
+    inp.value = sel[key].label; close();
+  };
+  list.addEventListener('mousedown', e => { const d = e.target.closest('[data-i]'); if (d){ e.preventDefault(); pick(+d.dataset.i); } });
+  inp.addEventListener('keydown', e => {
+    const divs = list.querySelectorAll('[data-i]');
+    if (list.style.display !== 'block' || !divs.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault(); act = (act + (e.key === 'ArrowDown' ? 1 : -1) + divs.length) % divs.length;
+      divs.forEach((d,i) => d.classList.toggle('act', i === act));
+    } else if (e.key === 'Enter'){ e.preventDefault(); pick(act < 0 ? 0 : act); }
+    else if (e.key === 'Escape') close();
+  });
+  inp.addEventListener('blur', () => setTimeout(close, 150));
+}
+setupPlace('from'); setupPlace('to');
+
+$('#gps').onclick = () => {
+  if (!navigator.geolocation) return showMsg('Posizione non disponibile su questo dispositivo.', true);
+  $('#from').value = 'Rilevo la posizione…';
+  navigator.geolocation.getCurrentPosition(p => {
+    sel.from = {label:'La mia posizione', place:`${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`};
+    $('#from').value = sel.from.label;
+  }, () => { $('#from').value = ''; showMsg('Non riesco a leggere la posizione: controlla i permessi.', true); }, {enableHighAccuracy:true, timeout:10000});
+};
+$('#swap').onclick = () => {
+  [sel.from, sel.to] = [sel.to, sel.from];
+  [$('#from').value, $('#to').value] = [$('#to').value, $('#from').value];
+};
+
+/* ---------- Controlli ---------- */
+let arriveBy = false;
+$('#arrby').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  arriveBy = b.dataset.v === '1';
+  $('#arrby').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+});
+$('#modes').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  c.classList.toggle('on');
+  if (!$('#modes .chip.on')) c.classList.add('on');   // almeno un mezzo
+});
+(function initDate(){
+  const n = new Date(), p = x => String(x).padStart(2,'0');
+  $('#date').value = `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
+  $('#time').value = `${p(n.getHours())}:${p(n.getMinutes())}`;
+  const saved = store('intervia.prefs');
+  if (saved){
+    $('#maxT').value = saved.maxT ?? '';
+    if (Array.isArray(saved.groups)) $('#modes').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', saved.groups.includes(c.dataset.g)));
+  }
+})();
+const groupsSel = () => [...document.querySelectorAll('#modes .chip.on')].map(c => c.dataset.g);
+
+/* ---------- Ricerche recenti ---------- */
+function renderRecent(){
+  const r = store('intervia.recent') || [];
+  $('#recent').innerHTML = r.map((x,i) => `<button type="button" data-i="${i}">↺ ${esc(x.from.label.split(',')[0])} → ${esc(x.to.label.split(',')[0])}</button>`).join('');
+}
+$('#recent').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const x = (store('intervia.recent') || [])[+b.dataset.i]; if (!x) return;
+  sel.from = x.from; sel.to = x.to; $('#from').value = x.from.label; $('#to').value = x.to.label;
+});
+function saveRecent(){
+  let r = (store('intervia.recent') || []).filter(x => !(x.from.place === sel.from.place && x.to.place === sel.to.place));
+  r.unshift({from:sel.from, to:sel.to}); store('intervia.recent', r.slice(0,6)); renderRecent();
+}
+renderRecent();
+
+/* ---------- Chiamata API ---------- */
+let last = null;   // ultima query, per paginazione
+async function callPlan(q, cursor){
+  const vers = planVer ? [planVer] : PLAN_VERSIONS;
+  let lastErr;
+  for (const ver of vers){
+    const p = new URLSearchParams({
+      fromPlace:q.from, toPlace:q.to, time:q.time, arriveBy:String(q.arriveBy),
+      transitModes: apiModes(q.groups, ver).join(','), directModes:'WALK',
+      numItineraries:'8', detailedTransfers:'false', language:'it', withFares:'true'
+    });
+    if (q.maxT !== '') p.set('maxTransfers', q.maxT);
+    if (cursor) p.set('pageCursor', cursor);
+    let r;
+    try{ r = await fetch(`${API}/api/${ver}/plan?${p}`); }
+    catch(e){ lastErr = new Error('Connessione non riuscita. Controlla la rete.'); continue; }
+    if (r.status === 404){ lastErr = new Error('Servizio non trovato'); continue; }
+    if (r.status === 400 && !planVer){
+      // parametro non supportato da questa versione: riprova più semplice
+      p.delete('withFares'); p.set('transitModes','TRANSIT');
+      const r2 = await fetch(`${API}/api/${ver}/plan?${p}`).catch(() => null);
+      if (r2 && r2.ok){ planVer = ver; return {ver, data: await r2.json(), relaxed:true}; }
+      lastErr = new Error('Richiesta non accettata dal servizio (' + r.status + ')'); continue;
+    }
+    if (r.status === 429) throw new Error('Troppe richieste ravvicinate: riprova tra qualche secondo.');
+    if (!r.ok){ lastErr = new Error('Errore dal servizio (' + r.status + ')'); continue; }
+    planVer = ver;
+    return {ver, data: await r.json()};
+  }
+  throw lastErr || new Error('Servizio non raggiungibile');
+}
+
+$('#f').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!sel.from) return showMsg('Scegli il punto di partenza dall\'elenco dei suggerimenti.', true);
+  if (!sel.to)   return showMsg('Scegli la destinazione dall\'elenco dei suggerimenti.', true);
+  if (!$('#date').value || !$('#time').value) return showMsg('Indica data e ora.', true);
+  const time = new Date(`${$('#date').value}T${$('#time').value}`).toISOString();
+  last = {from:sel.from.place, to:sel.to.place, time, arriveBy, maxT:$('#maxT').value, groups:groupsSel()};
+  store('intervia.prefs', {maxT:last.maxT, groups:last.groups});
+  saveRecent();
+  await run(null, 'new');
+});
+
+async function run(cursor, how){
+  const btn = $('#go'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Cerco…';
+  if (how === 'new') $('#out').innerHTML = '<div class="msg">Calcolo le soluzioni…</div>';
+  try{
+    const {ver, data} = await callPlan(last, cursor);
+    render(data, ver, how);
+  }catch(err){ showMsg(err.message, true); }
+  finally{ btn.disabled = false; btn.textContent = 'Cerca soluzioni'; }
+}
+
+/* ---------- Visualizzazione ---------- */
+let shown = [], cursors = {};
+function filterIt(its, ver){
+  const g = last.groups, maxT = last.maxT === '' ? Infinity : +last.maxT;
+  return its.filter(it => {
+    const tl = (it.legs || []).filter(l => modeGroup(l.mode, ver) !== 'piedi');
+    if (!tl.length) return false;
+    if (Math.max(0, tl.length - 1) > maxT) return false;
+    return tl.every(l => { const gr = modeGroup(l.mode, ver); return gr === 'altro' || g.includes(gr); });
+  });
+}
+function render(data, ver, how){
+  const its = filterIt(data.itineraries || [], ver);
+  if (how === 'new') shown = [];
+  const key = it => it.legs.map(l => (l.tripId || l.mode) + l.startTime).join('|');
+  const seen = new Set(shown.map(key));
+  const fresh = its.filter(it => !seen.has(key(it)));
+  shown = how === 'prev' ? fresh.concat(shown) : shown.concat(fresh);
+  shown.sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
+  if (how === 'new' || how === 'prev') cursors.prev = data.previousPageCursor;
+  if (how === 'new' || how === 'next') cursors.next = data.nextPageCursor;
+
+  const out = $('#out');
+  if (!shown.length){
+    out.innerHTML = `<div class="msg">Nessuna soluzione trovata con questi filtri.<br><small>Prova ad aumentare i cambi ammessi, includere altri mezzi o cambiare orario. Alcune aziende locali potrebbero non essere ancora coperte dai dati aperti.</small></div>` + pager();
+    bindPager(); return;
+  }
+  const head = `<div class="msg" style="margin-bottom:12px">${shown.length} soluzioni · ${esc(sel.from?.label.split(',')[0] || '')} → ${esc(sel.to?.label.split(',')[0] || '')} · ${fmtD(shown[0].startTime)}</div>`;
+  out.innerHTML = head + shown.map((it,i) => card(it, i, ver)).join('') + pager();
+  out.querySelectorAll('.it').forEach(c => c.addEventListener('click', e => { if (!e.target.closest('a')) c.classList.toggle('open'); }));
+  bindPager();
+}
+function pager(){
+  return `<div class="pager">${cursors.prev ? '<button id="pv">◀ Più presto</button>' : ''}${cursors.next ? '<button id="nx">Più tardi ▶</button>' : ''}</div>`;
+}
+function bindPager(){
+  $('#pv')?.addEventListener('click', () => run(cursors.prev, 'prev'));
+  $('#nx')?.addEventListener('click', () => run(cursors.next, 'next'));
+}
+function card(it, i, ver){
+  const legs = it.legs || [];
+  const tl = legs.filter(l => modeGroup(l.mode, ver) !== 'piedi');
+  const changes = Math.max(0, tl.length - 1);
+  const first = tl[0], lastL = tl[tl.length-1];
+  const dDep = first ? delayMin(first.from?.departure, first.from?.scheduledDeparture) : 0;
+  const dArr = lastL ? delayMin(lastL.to?.arrival, lastL.to?.scheduledArrival) : 0;
+  const anyCanc = legs.some(l => l.cancelled || l.from?.cancelled);
+  const chips = tl.map(l => {
+    const g = modeGroup(l.mode, ver);
+    const lab = l.displayName || l.routeShortName || NAME[g];
+    const st = l.routeColor ? `style="background:#${esc(l.routeColor)};color:#${esc(l.routeTextColor || 'fff')}"` : '';
+    return `<span class="badge" ${st}>${ICON[g]} ${esc(lab)}</span>`;
+  }).join('<span class="arrow">›</span>');
+  const fare = fareText(it);
+  return `<div class="card it">
+    <div class="top">
+      <div class="times">${fmtT(it.startTime)} → ${fmtT(it.endTime)}</div>
+      <div class="dur"><b>${fmtDur(it.duration)}</b><br>${changes === 0 ? 'Diretto' : changes + (changes === 1 ? ' cambio' : ' cambi')}</div>
+    </div>
+    <div class="modes">${chips}</div>
+    <div class="sub" style="margin-top:6px;font-size:13px">
+      ${anyCanc ? '<span class="canc">⚠ Corsa cancellata</span> · ' : ''}
+      ${first?.realTime ? (dDep > 0 ? `<span class="late">Partenza +${dDep}′</span>` : '<span class="ontime">In orario</span>') : ''}
+      ${lastL?.realTime && dArr > 0 ? ` · <span class="late">Arrivo +${dArr}′</span>` : ''}
+      ${fare ? ` · 💶 ${esc(fare)}` : ''}
+      <span style="float:right;color:var(--mute)">Dettagli ▾</span>
+    </div>
+    <div class="det">${legs.map(l => legHtml(l, ver)).join('')}</div>
+  </div>`;
+}
+function fareText(it){
+  try{
+    const ft = it.fareTransfers; if (!ft || !ft.length) return '';
+    let tot = 0, cur = '';
+    for (const t of ft){
+      const prods = t.effectiveFareLegProducts?.flat(2) || [];
+      const p = prods.find(x => x && x.amount != null);
+      if (p){ tot += p.amount; cur = p.currency || cur; }
+    }
+    return tot ? tot.toLocaleString('it-IT',{style:'currency',currency:cur || 'EUR'}) + ' (stima)' : '';
+  }catch(e){ return ''; }
+}
+function legHtml(l, ver){
+  const g = modeGroup(l.mode, ver);
+  if (g === 'piedi'){
+    const m = Math.max(1, Math.round((l.duration || 0)/60));
+    const dist = l.distance ? ` · ${l.distance >= 1000 ? (l.distance/1000).toFixed(1) + ' km' : Math.round(l.distance) + ' m'}` : '';
+    return `<div class="leg walk"><div class="t">${fmtT(l.startTime)}</div><div class="what">🚶 A piedi ${m} min${dist} fino a ${esc(l.to?.name)}</div></div>`;
+  }
+  const dd = delayMin(l.from?.departure, l.from?.scheduledDeparture);
+  const da = delayMin(l.to?.arrival, l.to?.scheduledArrival);
+  const sched = (x, s) => s && x && x !== s ? `<small>prev. ${fmtT(s)}</small>` : '';
+  const track = (p) => p?.track ? ` · bin. ${esc(p.track)}${p.scheduledTrack && p.scheduledTrack !== p.track ? ` <span class="late">(era ${esc(p.scheduledTrack)})</span>` : ''}` : '';
+  const stops = (l.intermediateStops || []).length;
+  const name = l.displayName || l.routeShortName || NAME[g];
+  const tix = ticketLinks(l).map(t => `<a class="${t.main ? 'main' : ''}" href="${esc(t.url)}" target="_blank" rel="noopener">🎫 ${esc(t.label)}</a>`).join('');
+  return `<div class="leg">
+    <div class="t">${fmtT(l.from?.departure || l.startTime)}${sched(l.from?.departure, l.from?.scheduledDeparture)}</div>
+    <div class="what">
+      <b>${ICON[g]} ${esc(name)}</b>${l.headsign ? ` → ${esc(l.headsign)}` : ''}
+      ${l.realTime ? (dd > 0 ? ` <span class="late">+${dd}′</span>` : ' <span class="ontime">● tempo reale</span>') : ''}
+      ${l.cancelled ? ' <span class="canc">CANCELLATO</span>' : ''}
+      <div class="sub">Da <b>${esc(l.from?.name)}</b>${track(l.from)}</div>
+      <div class="sub">A <b>${esc(l.to?.name)}</b> alle ${fmtT(l.to?.arrival || l.endTime)}${da > 0 && l.realTime ? ` <span class="late">+${da}′</span>` : ''}${track(l.to)}</div>
+      <div class="sub">${fmtDur(l.duration || 0)}${stops ? ` · ${stops} fermate intermedie` : ' · senza fermate intermedie'}${l.agencyName ? ' · ' + esc(l.agencyName) : ''}</div>
+      ${tix ? `<div class="tix">${tix}</div>` : ''}
+    </div>
+  </div>`;
+}
+function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}">${esc(t)}</div>`; }
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
