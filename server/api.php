@@ -104,7 +104,7 @@ function vt($path, $ttl) {
 $a = $_GET['a'] ?? '';
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.4']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.5']);
 if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
     $res = [];
     foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
@@ -225,16 +225,46 @@ function osm_cache_file($ql) {
 }
 function overpass_fetch($ql) {
     global $LAST_ERR;
+    $servers = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+    $timeout = strpos($ql, 'area') !== false ? 130 : 60;
     $errs = [];
-    $timeout = strpos($ql, 'area') !== false ? 130 : 55;
-    foreach (['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'] as $srv) {
-        $LAST_ERR = '';
-        $r = fetch_url($srv . '?data=' . rawurlencode($ql), 0, $timeout);
-        if ($r !== false) { $j = json_decode($r, true); if (is_array($j) && isset($j['elements'])) return $j; }
-        $errs[] = parse_url($srv, PHP_URL_HOST) . ': ' . ($LAST_ERR ?: 'risposta non valida');
+    if (!function_exists('curl_multi_init')) {          // senza cURL: un server alla volta
+        foreach ($servers as $srv) {
+            $LAST_ERR = '';
+            $r = fetch_url($srv . '?data=' . rawurlencode($ql), 0, $timeout);
+            if ($r !== false) { $j = json_decode($r, true); if (is_array($j) && isset($j['elements'])) return $j; }
+            $errs[] = parse_url($srv, PHP_URL_HOST) . ': ' . ($LAST_ERR ?: 'risposta non valida');
+        }
+        $LAST_ERR = implode(' · ', $errs);
+        return false;
     }
-    $LAST_ERR = implode(' · ', $errs);
-    return false;
+    // tutti i server in parallelo: vince la prima risposta valida
+    $mh = curl_multi_init(); $hs = [];
+    foreach ($servers as $srv) {
+        $ch = curl_init($srv . '?data=' . rawurlencode($ql));
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '']);
+        curl_multi_add_handle($mh, $ch); $hs[] = [$ch, $srv];
+    }
+    $result = false; $running = 0;
+    do {
+        $st = curl_multi_exec($mh, $running);
+        if ($st > CURLM_OK) break;
+        while ($info = curl_multi_info_read($mh)) {
+            $ch = $info['handle']; $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $host = parse_url(curl_getinfo($ch, CURLINFO_EFFECTIVE_URL), PHP_URL_HOST);
+            if ($info['result'] === CURLE_OK && $code == 200) {
+                $j = json_decode(curl_multi_getcontent($ch), true);
+                if (is_array($j) && isset($j['elements'])) { $result = $j; break 2; }
+                $errs[] = $host . ': risposta non valida';
+            } else $errs[] = $host . ': ' . ($info['result'] !== CURLE_OK ? curl_error($ch) : 'HTTP ' . $code);
+        }
+        if ($running) curl_multi_select($mh, 1.0);
+    } while ($running);
+    foreach ($hs as [$ch]) { curl_multi_remove_handle($mh, $ch); curl_close($ch); }
+    curl_multi_close($mh);
+    if ($result === false) $LAST_ERR = implode(' · ', $errs ?: ['nessuna risposta']);
+    return $result;
 }
 $OSM_DATE = null;
 function overpass_q($ql) {
@@ -287,8 +317,10 @@ if ($a === 'lines') {
     out(['ok' => true, 'elements' => $j['elements'], 'date' => $OSM_DATE]);
 }
 if ($a === 'line') {
-    $id = preg_replace('/\D/', '', $_GET['id'] ?? '');
-    if ($id === '') fail('Parametri non validi', 400);
+    $ids = array_slice(array_filter(array_map(fn($v) => preg_replace('/\D/', '', $v), explode(',', $_GET['id'] ?? ''))), 0, 30);
+    if (!$ids) fail('Parametri non validi', 400);
+    sort($ids);
+    $id = 'id:' . implode(',', $ids);
     $j = overpass_q('[out:json][timeout:50];relation(' . $id . ')->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;');
     if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
     out(['ok' => true, 'elements' => $j['elements'], 'date' => $OSM_DATE]);

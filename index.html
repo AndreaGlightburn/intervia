@@ -921,11 +921,38 @@ async function osmLines(refs, bb){
   });
   return {elements: r.v};
 }
+function stopsOfRelation(rel, byId){
+  const pick = rolePrefix => (rel.members || []).filter(m => m.role.startsWith(rolePrefix)).map(m => {
+    const el = byId[m.type + m.ref]; if (!el) return null;
+    const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
+    const name = el.tags && (el.tags.name || el.tags['name:it'] || el.tags.ref_name);
+    return name && lat != null ? {name, lat, lon} : null;
+  }).filter(Boolean);
+  let stops = pick('stop'); const plats = pick('platform');
+  if (plats.length > stops.length) stops = plats;
+  return stops.filter((s, i, a) => i === 0 || s.name !== a[i-1].name);
+}
+// Scarica in un'unica richiesta le fermate di più percorsi e le salva sul telefono
+const stopsPending = {};
+function prefetchStops(ids){
+  const todo = [...new Set(ids.map(String))].filter(id => !lcGet('line:' + id) && !stopsPending[id]).slice(0, 30);
+  if (!todo.length) return;
+  const p = osmLine(todo.join(',')).then(data => {
+    const byId = {}; data.elements.forEach(x => { if (x.type !== 'relation') byId[x.type + x.id] = x; });
+    data.elements.filter(x => x.type === 'relation').forEach(rel => {
+      const st = stopsOfRelation(rel, byId);
+      if (st.length) lcSet('line:' + rel.id, st);
+    });
+  }).finally(() => todo.forEach(id => delete stopsPending[id]));
+  todo.forEach(id => stopsPending[id] = p);
+  p.catch(() => {});
+}
 const fmtDay = t => new Date(t).toLocaleDateString('it-IT', {day:'numeric', month:'short', year:'numeric'});
 async function osmLine(id){
-  try{ const j = await withTimeout(bridgeGet({a:'line', id}), 60000); return {elements: j.elements}; }
+  const ids = String(id).split(',').sort().join(',');
+  try{ const j = await withTimeout(bridgeGet({a:'line', id: ids}), 70000); return {elements: j.elements}; }
   catch(e){ console.warn('ponte linea', e); }
-  return overpass(`[out:json][timeout:25];relation(${id})->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;`);
+  return overpass(`[out:json][timeout:25];relation(id:${ids})->.r;.r out body;node(r.r);out body;(way(r.r:"platform");way(r.r:"platform_entry_only");way(r.r:"platform_exit_only"););out tags center;`);
 }
 // "metro 4 milano" → {refs:[M4,4], modes:[subway], place:"milano"}
 function parseLineQuery(q){
@@ -1026,6 +1053,7 @@ async function runLineSearch(text){
       if (cd.classList.contains('open')) loadLine(cd);
     }));
     bindFavButtons(out);
+    prefetchStops(rels.slice(0, 12).map(r => r.id));
   }catch(err){ out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
   finally{ btn.disabled = false; }
 }
@@ -1109,9 +1137,10 @@ async function loadLine(cd){
   det.dataset.done = '1'; det.innerHTML = '<div class="sub">Carico le fermate…</div>';
   try{
     const id = cd.dataset.id;
+    if (!lcGet('line:' + id) && stopsPending[id]){ det.innerHTML = '<div class="sub">Carico le fermate… (già in arrivo)</div>'; await stopsPending[id].catch(() => {}); }
     const res = await cachedGet('line:' + id, async () => {
     const data = await osmLine(id);
-    const rel = data.elements.find(x => x.type === 'relation');
+    const rel = data.elements.find(x => x.type === 'relation' && String(x.id) === String(id)) || data.elements.find(x => x.type === 'relation');
     const byId = {}; data.elements.forEach(x => { if (x.type !== 'relation') byId[x.type + x.id] = x; });
     const pick = rolePrefix => (rel.members || []).filter(m => m.role.startsWith(rolePrefix)).map(m => {
       const el = byId[m.type + m.ref]; if (!el) return null;
@@ -1581,6 +1610,7 @@ function showCityLine([ref, rels]){
     if (cd.classList.contains('open')) loadLine(cd);
   }));
   bindFavButtons(box);
+  prefetchStops(rels.map(r => r.id));
   box.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
