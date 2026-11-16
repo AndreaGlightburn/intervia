@@ -539,10 +539,43 @@ async function run(cursor, how){
   const btn = $('#go'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Cerco…';
   if (how === 'new') $('#out').innerHTML = '<div class="msg">Calcolo le soluzioni…</div>';
   try{
-    const {ver, data} = await callPlan(last, cursor);
-    render(data, ver, how);
+    let {ver, data} = await callPlan(last, cursor);
+    let diag = {raw:(data.itineraries || []).length, direct:(data.direct || []).length, from:last.from, to:last.to, ver};
+    // Nessun risultato partendo/arrivando da coordinate: riprova dalla fermata più vicina
+    if (how === 'new' && !filterIt(data.itineraries || [], ver).length && !last.snapNote){
+      const q2 = await snapToStops(last);
+      if (q2){
+        diag.snapTried = q2.snapNote;
+        const r2 = await callPlan(q2, null);
+        if (filterIt(r2.data.itineraries || [], r2.ver).length){ last = q2; ver = r2.ver; data = r2.data; }
+      }
+    }
+    render(data, ver, how, diag);
   }catch(err){ showMsg(err.message, true); }
   finally{ btn.disabled = false; btn.textContent = 'Cerca soluzioni'; }
+}
+
+const COORD_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
+async function nearestStop(place){
+  const r = await fetch(`${API}/api/v1/reverse-geocode?place=${encodeURIComponent(place)}&type=STOP`);
+  if (!r.ok) return null;
+  const list = (await r.json()) || [];
+  const [lat, lon] = place.split(',').map(Number);
+  const d = m => Math.hypot((m.lat - lat) * 111, (m.lon - lon) * 78);
+  return list.filter(m => m.type === 'STOP' && m.id).sort((a,b) => d(a) - d(b))[0] || null;
+}
+async function snapToStops(q){
+  const q2 = {...q}, notes = [];
+  for (const k of ['from','to']){
+    if (!COORD_RE.test(q[k])) continue;
+    try{
+      const st = await nearestStop(q[k]);
+      if (st){ q2[k] = st.id; notes.push((k === 'from' ? 'partenza dalla fermata ' : 'arrivo alla fermata ') + st.name); }
+    }catch(e){}
+  }
+  if (!notes.length) return null;
+  q2.snapNote = notes.join(' · ');
+  return q2;
 }
 
 /* ---------- Visualizzazione ---------- */
@@ -556,7 +589,7 @@ function filterIt(its, ver){
     return tl.every(l => { const gr = modeGroup(l.mode, ver); return gr === 'altro' || g.includes(gr); });
   });
 }
-function render(data, ver, how){
+function render(data, ver, how, diag){
   const its = filterIt(data.itineraries || [], ver);
   if (how === 'new') shown = [];
   const key = it => it.legs.map(l => (l.tripId || l.mode) + l.startTime).join('|');
@@ -569,10 +602,11 @@ function render(data, ver, how){
 
   const out = $('#out');
   if (!shown.length){
-    out.innerHTML = `<div class="msg">Nessuna soluzione trovata con questi filtri.<br><small>Prova ad aumentare i cambi ammessi, includere altri mezzi o cambiare orario. Alcune aziende locali potrebbero non essere ancora coperte dai dati aperti.</small></div>` + pager();
+    const dg = diag ? `<br><small style="opacity:.7">Diagnostica: API ${esc(diag.ver)} · soluzioni ricevute ${diag.raw} (scartate dai filtri ${diag.raw}) · solo a piedi ${diag.direct} · da ${esc(diag.from)} · a ${esc(diag.to)}${diag.snapTried ? ' · riprovato con ' + esc(diag.snapTried) : ''}</small>` : '';
+    out.innerHTML = `<div class="msg">Nessuna soluzione trovata con questi filtri.<br><small>Prova ad aumentare i cambi ammessi, includere altri mezzi o cambiare orario. Alcune aziende locali potrebbero non essere ancora coperte dai dati aperti.</small>${dg}</div>` + pager();
     bindPager(); return;
   }
-  const head = `<div class="msg" style="margin-bottom:12px">${shown.length} soluzioni · ${esc(sel.from?.label.split(',')[0] || '')} → ${esc(sel.to?.label.split(',')[0] || '')} · ${fmtD(shown[0].startTime)}</div>`;
+  const head = `<div class="msg" style="margin-bottom:12px">${shown.length} soluzioni · ${esc(sel.from?.label.split(',')[0] || '')} → ${esc(sel.to?.label.split(',')[0] || '')} · ${fmtD(shown[0].startTime)}${last.snapNote ? `<br><small>📍 Calcolato con ${esc(last.snapNote)} (la più vicina al punto scelto)</small>` : ''}</div>`;
   out.innerHTML = head + shown.map((it,i) => card(it, i, ver)).join('') + pager();
   out.querySelectorAll('.it').forEach(c => c.addEventListener('click', e => {
     if (e.target.closest('a') || e.target.closest('.rmap')) return;
