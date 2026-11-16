@@ -123,7 +123,7 @@ footer a{color:var(--mute)}
   <p>Treni, bus, metro e tram: tutte le soluzioni da A a B</p></div>
 </header>
 <main>
-  <div class="tabs" id="tabs"><button type="button" class="on" data-t="route">🧭 Percorso</button><button type="button" data-t="lines">🚉 Linee</button></div>
+  <div class="tabs" id="tabs"><button type="button" class="on" data-t="route">🧭 Percorso</button><button type="button" data-t="lines">🚉 Linee</button><button type="button" data-t="station">🕒 Stazioni</button></div>
   <div id="tab-route">
   <form class="card" id="f" autocomplete="off">
     <div class="place" id="p-from">
@@ -181,6 +181,18 @@ footer a{color:var(--mute)}
   </form>
 
   <div id="out"></div>
+  </div>
+  <div id="tab-station" hidden>
+    <div class="card">
+      <div class="place" id="p-st">
+        <label for="st">Stazione o fermata</label>
+        <div class="inwrap"><input type="text" id="st" placeholder="es. Abbiategrasso, Milano Cadorna, Duomo M1"></div>
+        <div class="sugg"></div>
+      </div>
+      <div class="seg mt" id="stmode"><button type="button" class="on" data-v="dep">Partenze</button><button type="button" data-v="arr">Arrivi</button></div>
+      <div class="recent" id="strecent"></div>
+    </div>
+    <div id="stout"></div>
   </div>
   <div id="tab-lines" hidden>
     <form class="card" id="lf" autocomplete="off">
@@ -812,6 +824,7 @@ $('#tabs').addEventListener('click', e => {
   $('#tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   $('#tab-route').hidden = b.dataset.t !== 'route';
   $('#tab-lines').hidden = b.dataset.t !== 'lines';
+  $('#tab-station').hidden = b.dataset.t !== 'station';
 });
 $('#lf').addEventListener('submit', async e => {
   e.preventDefault();
@@ -921,6 +934,78 @@ async function departuresHtml(s, ref){
         return `<div><b>${fmtT(t)}</b> ${esc(x.displayName || x.routeShortName || '')} → ${esc(x.headsign || '')}${p.track ? ` · bin. ${esc(p.track)}` : ''} ${x.cancelled || p.cancelled ? '<span class="canc">soppresso</span>' : x.realTime ? (d > 0 ? `<span class="late">+${d}′</span>` : '<span class="ontime">in orario</span>') : ''}</div>`;
       }).join('');
   }catch(e){ return 'Partenze non disponibili.'; }
+}
+
+/* ---------- Tabellone stazioni ---------- */
+let stSel = null, stArr = false, stTimer = null;
+(function setupStation(){
+  const box = $('#p-st'), inp = $('#st'), list = box.querySelector('.sugg');
+  let timer, ctrl, items = [];
+  inp.addEventListener('input', () => {
+    clearTimeout(timer); const q = inp.value.trim();
+    if (q.length < 2){ list.style.display = 'none'; return; }
+    timer = setTimeout(async () => {
+      try{
+        ctrl?.abort(); ctrl = new AbortController();
+        const r = await fetch(`${API}/api/v1/geocode?text=${encodeURIComponent(q)}&language=it&type=STOP`, {signal:ctrl.signal});
+        items = ((await r.json()) || []).filter(m => m.type === 'STOP').map(transitousItem).slice(0, 12);
+        list.innerHTML = items.length ? items.map((m,i) => `<div data-i="${i}">🚏 ${esc(m.main)}<small>${esc(m.sub)}</small></div>`).join('') : '<div>Nessuna fermata trovata</div>';
+        list.style.display = 'block';
+      }catch(e){ if (e.name !== 'AbortError'){ list.innerHTML = '<div>Ricerca non disponibile</div>'; list.style.display = 'block'; } }
+    }, 350);
+  });
+  list.addEventListener('mousedown', e => {
+    const d = e.target.closest('[data-i]'); if (!d) return; e.preventDefault();
+    const m = items[+d.dataset.i]; list.style.display = 'none';
+    openStation({id: m.place, name: m.main, sub: m.sub});
+  });
+  inp.addEventListener('blur', () => setTimeout(() => list.style.display = 'none', 150));
+  $('#stmode').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    stArr = b.dataset.v === 'arr';
+    $('#stmode').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    if (stSel) loadBoard();
+  });
+  $('#strecent').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const x = (store('intervia.stations') || [])[+b.dataset.i]; if (x) openStation(x);
+  });
+  renderStRecent();
+})();
+function renderStRecent(){
+  const r = store('intervia.stations') || [];
+  $('#strecent').innerHTML = r.map((x,i) => `<button type="button" data-i="${i}">🕒 ${esc(x.name)}</button>`).join('');
+}
+function openStation(x){
+  stSel = x; $('#st').value = x.name;
+  let r = (store('intervia.stations') || []).filter(y => y.id !== x.id); r.unshift(x); store('intervia.stations', r.slice(0, 8)); renderStRecent();
+  loadBoard();
+}
+async function loadBoard(){
+  clearInterval(stTimer);
+  const out = $('#stout'); out.innerHTML = '<div class="msg">Carico il tabellone…</div>';
+  let data = null;
+  for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
+    const r = await fetch(`${API}/api/${ver}/stoptimes?stopId=${encodeURIComponent(stSel.id)}&n=40&arriveBy=${stArr}`).catch(() => null);
+    if (r && r.ok){ data = await r.json(); break; }
+  }
+  if (!data){ out.innerHTML = '<div class="msg err">Tabellone non disponibile.</div>'; return; }
+  const list = data.stopTimes || [];
+  const now = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+  out.innerHTML = `<div class="msg" style="margin-bottom:12px"><b>${esc(stSel.name)}</b> · ${stArr ? 'arrivi' : 'partenze'} · aggiornato alle ${now} <a href="#" id="strefresh" style="float:right">↻ Aggiorna</a></div>` +
+    (list.length ? `<div class="card">${list.map(x => {
+      const p = x.place || {}, t = stArr ? (p.arrival || p.departure) : (p.departure || p.arrival);
+      const sch = stArr ? (p.scheduledArrival || p.scheduledDeparture) : (p.scheduledDeparture || p.scheduledArrival);
+      const d = delayMin(t, sch), g = modeGroup(x.mode, planVer || 'v5');
+      const st = l => l ? `style="background:#${esc(l.routeColor)};color:#${esc(l.routeTextColor || 'fff')}"` : '';
+      const n = g === 'treno' ? trainNumber(x) : null;
+      return `<div class="leg"><div class="t">${fmtT(t)}${d > 0 ? `<small class="late">+${d}′</small>` : (x.realTime ? '<small class="ontime">in orario</small>' : '')}</div>
+        <div class="what"><span class="badge" ${x.routeColor ? st(x) : ''}>${ICON[g] || '🚏'} ${esc(x.displayName || x.routeShortName || NAME[g])}</span>
+        ${stArr ? 'da' : '→'} <b>${esc(x.headsign || '')}</b>${x.cancelled || p.cancelled ? ' <span class="canc">soppresso</span>' : ''}
+        <div class="sub">${p.track ? `Binario ${esc(p.track)}${p.scheduledTrack && p.scheduledTrack !== p.track ? ` <span class="late">(era ${esc(p.scheduledTrack)})</span>` : ''} · ` : ''}${esc(x.agencyName || '')}${n && /trenord/i.test(x.agencyName || '') ? ` · <a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/?train=${n}" target="_blank" rel="noopener">📡 treno ${n}</a>` : ''}</div></div></div>`;
+    }).join('')}</div>` : '<div class="msg">Nessun passaggio nelle prossime ore.</div>');
+  $('#strefresh').onclick = e => { e.preventDefault(); loadBoard(); };
+  stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(); }, 60000);
 }
 
 function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}">${esc(t)}</div>`; }
