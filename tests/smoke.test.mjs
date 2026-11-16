@@ -188,5 +188,30 @@ await test('linee di una città: "Annulla" ferma la ricerca', async () => {
   assert.match(d.getElementById('lout').textContent, /annullata/); assert.equal(d.getElementById('citygo').disabled, false);
 });
 
+await test('linee di una città dagli orari (senza OpenStreetMap): linee, direzioni e fermate', async () => {
+  let overpassCalls = 0;
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('photon')) return json(w, { features: [{ geometry: { coordinates: [13.23, 46.06] }, properties: { osm_type: 'R', osm_id: 41, name: 'Udine', extent: [13.15, 46.10, 13.30, 46.02] } }] });
+    if (u.includes('/map/stops')) return json(w, [{ stopId: 's1', name: 'Piazza Libertà', lat: 46.06, lon: 13.23 }, { stopId: 's2', name: 'Stazione FS', lat: 46.05, lon: 13.24 }]);
+    if (u.includes('/stoptimes')) return json(w, { stopTimes: [
+      { mode: 'BUS', routeShortName: '1', headsign: 'Ospedale', tripId: 't1', agencyName: 'Arriva Udine', routeColor: 'E30613' },
+      { mode: 'BUS', routeShortName: '1', headsign: 'Stazione', tripId: 't2', agencyName: 'Arriva Udine' },
+      { mode: 'REGIONAL_RAIL', displayName: 'R 20871', headsign: 'Trieste C.le', tripId: 't3', agencyName: 'Trenitalia' } ] });
+    if (u.includes('/trip?')) return json(w, { legs: [{ tripId: 't1', mode: 'BUS', routeShortName: '1', from: { name: 'Stazione', lat: 46.05, lon: 13.24, departure: Z('07:00') }, intermediateStops: [{ name: 'Piazza Libertà', lat: 46.06, lon: 13.23, arrival: Z('07:05') }], to: { name: 'Ospedale', lat: 46.07, lon: 13.22, arrival: Z('07:12') } }] });
+    if (u.includes('interpreter') || u.includes('api.php')) { overpassCalls++; return json(w, {}, 500); }
+    return json(w, []);
+  });
+  w.eval("runCityLines('Udine')");
+  assert.ok(await until(() => /2 linee/.test(d.getElementById('lout').textContent), 6000), d.getElementById('lout').textContent);
+  const chips = [...d.querySelectorAll('#lout .chip[data-g]')].map(c => c.textContent);
+  assert.ok(chips.includes('1') && chips.includes('R'), 'il numero del treno non diventa una linea: ' + chips);
+  assert.equal(overpassCalls, 0, 'OpenStreetMap non interrogato');
+  d.querySelector('#lout .chip[data-g]').click();
+  const dirs = d.querySelectorAll('#cityline .ttdir');
+  assert.equal(dirs.length, 2);
+  dirs[0].click();
+  assert.ok(await until(() => /Piazza Libertà/.test(dirs[0].textContent)), dirs[0].textContent);
+});
+
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);

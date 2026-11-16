@@ -57,6 +57,7 @@ Punti principali in `index.html`: `fetchT`, `NetError`, `callPlan` (parametri fa
 11. Server: `api.php?a=ping` → `"version":"2.0.4"`; `api.php?a=diag` → stato delle fonti.
 
 ## 4. Problemi aperti
+- **Linee da Transitous (v2.2.0)**: l'elenco delle linee di una città e la ricerca di una linea ora si ricavano dagli orari (`map/stops` + `stoptimes` + `trip`), perché Overpass non risponde al server Aruba (IP condiviso: probabile limite per IP di Overpass, diagnostica 16/11 08:24). Il formato di `map/stops` non è ancora verificato sul servizio reale. Le linee senza corse nelle ore successive non compaiono. OpenStreetMap resta come ripiego.
 - **Validazione su dati reali** dei punti 1, 2, 3 e 5 della checklist.
 - **ViaggiaTreno dal server Aruba** risultava non raggiungibile: controllare `a=diag`.
 - **Copertura metro/ATM** in Transitous non verificata.

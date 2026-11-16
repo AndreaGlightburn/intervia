@@ -310,7 +310,7 @@ footer a{color:var(--mute)}
 
 <script>
 'use strict';
-const APP_VERSION = '2.1.2', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
+const APP_VERSION = '2.2.0', APP_DATE = '2026-11-16', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -1271,7 +1271,72 @@ async function runLineSearch(text){
   }catch(err){ if (!stale()) out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
   finally{ if (!stale()) btn.disabled = false; }
 }
-// Linee dagli orari Transitous: corse in zona nelle prossime 2 ore con quel nome di linea
+/* ---------- Linee ricavate dagli orari (Transitous): fermate della zona → corse in partenza ---------- */
+async function stopsInBox(b, signal){
+  for (const ver of ['v1', planVer, 'v5'].filter((v,i,a) => v && a.indexOf(v) === i)){
+    try{
+      const r = await fetchT(`${API}/api/${ver}/map/stops?min=${b.minLat.toFixed(5)},${b.minLon.toFixed(5)}&max=${b.maxLat.toFixed(5)},${b.maxLon.toFixed(5)}`, {signal}, 15000);
+      if (!r.ok) continue;
+      const list = await r.json();
+      if (Array.isArray(list)) return list.map(x => ({id: x.stopId || x.id, name: x.name, lat: x.lat, lon: x.lon})).filter(x => x.id && x.lat != null);
+    }catch(e){ if (e.name === 'AbortError') throw e; }
+  }
+  return [];
+}
+// sceglie fermate distribuite su tutta l'area (griglia), non solo quelle del centro
+function spreadStops(stops, b, cells = 7, cap = 36){
+  const seen = new Map();
+  for (const st of stops){
+    const gx = Math.min(cells - 1, Math.floor((st.lon - b.minLon) / (b.maxLon - b.minLon || 1) * cells));
+    const gy = Math.min(cells - 1, Math.floor((st.lat - b.minLat) / (b.maxLat - b.minLat || 1) * cells));
+    const k = gx + ',' + gy;
+    if (!seen.has(k)) seen.set(k, []);
+    if (seen.get(k).length < 2) seen.get(k).push(st);
+  }
+  const out = []; let round = 0;
+  while (out.length < cap && round < 2){ for (const arr of seen.values()) if (arr[round] && out.length < cap) out.push(arr[round]); round++; }
+  return out;
+}
+const lineNameOf = x => (x.routeShortName || String(x.displayName || '').replace(/\s+\d{3,6}$/, '') || '').trim();
+async function routesFromStops(stops, {signal, onProgress, n = 50} = {}){
+  const routes = new Map(); let done = 0;
+  const queue = [...stops];
+  const worker = async () => {
+    while (queue.length){
+      const st = queue.shift();
+      try{
+        for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
+          const r = await fetchT(`${API}/api/${ver}/stoptimes?stopId=${encodeURIComponent(st.id)}&n=${n}`, {signal}, 15000);
+          if (!r.ok) continue;
+          const d = await r.json();
+          for (const x of (d.stopTimes || [])){
+            const name = lineNameOf(x) || '?', group = modeGroup(x.mode, ver);
+            const key = name + '|' + group + '|' + (x.agencyName || '');
+            if (!routes.has(key)) routes.set(key, {name, group, color: x.routeColor, textColor: x.routeTextColor, agency: x.agencyName || '', dirs: {}});
+            const rt = routes.get(key), hs = x.headsign || '—';
+            if (!rt.dirs[hs] && x.tripId) rt.dirs[hs] = x.tripId;
+          }
+          break;
+        }
+      }catch(e){ if (e.name === 'AbortError') throw e; }
+      onProgress?.(++done, stops.length);
+    }
+  };
+  await Promise.all(Array.from({length: 6}, worker));
+  return [...routes.values()].filter(r => Object.keys(r.dirs).length);
+}
+// Fermate di una corsa (con orari) per mostrare un percorso
+async function variantFromTrip(id, fallback = {}){
+  const tr = await fetchTrip(id).catch(() => null);
+  const l = tr && ((tr.legs || []).find(x => x.tripId === id) || (tr.legs || [])[0]);
+  if (!l) return null;
+  const stops = [l.from, ...(l.intermediateStops || []), l.to].filter(Boolean);
+  return {key: stops[0].name + '→' + stops[stops.length - 1].name, from: stops[0].name, to: stops[stops.length - 1].name, stops,
+    name: lineNameOf(l) || fallback.name, color: l.routeColor || fallback.color, textColor: l.routeTextColor || fallback.textColor,
+    agency: l.agencyName || fallback.agency, group: modeGroup(l.mode, planVer || 'v5'), geom: l.legGeometry, tripId: id};
+}
+
+// Linee dagli orari Transitous: corse in zona con quel nome di linea
 async function lineFromTimetable(pq, c){
   const now = new Date(), end = new Date(now.getTime() + 30 * 60e3);
   const min = `${(c.lat - .12).toFixed(4)},${(c.lon - .16).toFixed(4)}`, max = `${(c.lat + .12).toFixed(4)},${(c.lon + .16).toFixed(4)}`;
@@ -1282,9 +1347,19 @@ async function lineFromTimetable(pq, c){
       if (r.ok){ segs = await r.json(); if (!planVer) planVer = ver; break; }
     }catch(e){}
   }
-  if (!Array.isArray(segs)) return [];
   const want = new Set(pq.refs.map(r => r.toLowerCase().replace(/\s/g, '')));
   const hit = v => v && want.has(String(v).toLowerCase().replace(/\s/g, ''));
+  const PQ_GROUP = {subway:'metro', light_rail:'treno', train:'treno', tram:'tram', bus:'bus', trolleybus:'bus', coach:'pullman'};
+  if (!Array.isArray(segs) || !segs.length){
+    // ripiego: fermate della zona → corse in partenza con quel nome
+    const b = {minLat: c.lat - .07, maxLat: c.lat + .07, minLon: c.lon - .1, maxLon: c.lon + .1};
+    const stops = spreadStops(await stopsInBox(b), b, 6, 30);
+    const routes = (await routesFromStops(stops)).filter(r => hit(r.name) && (!pq.modes || pq.modes.some(m => PQ_GROUP[m] === r.group)));
+    const ids = routes.flatMap(r => Object.values(r.dirs).map(id => [id, r])).slice(0, 8);
+    const vars = new Map();
+    await Promise.all(ids.map(async ([id, r]) => { const v = await variantFromTrip(id, r); if (v && (!vars.has(v.key) || v.stops.length > vars.get(v.key).stops.length)) vars.set(v.key, v); }));
+    return [...vars.values()].sort((a,b) => a.key.localeCompare(b.key));
+  }
   const trips = new Map();
   for (const sg of segs){
     if (pq.modes){ const g = modeGroup(sg.mode, planVer || 'v5'); const ok = {subway:'metro', light_rail:'treno', train:'treno', tram:'tram', bus:'bus', trolleybus:'bus', coach:'pullman'}; if (!pq.modes.some(m => ok[m] === g)) continue; }
@@ -1762,12 +1837,27 @@ function renderCityFavs(){
 }
 renderCityFavs();
 async function fetchCityLines(city, force){
-  let areaId = null, label = city;
+  let areaId = null, label = city, box = null;
   try{
     const r = await fetchT(`${PHOTON}?q=${encodeURIComponent(city)}&limit=5&osm_tag=boundary:administrative&bbox=6.6,35.4,18.6,47.1`, {}, 8000);
     const f = ((await r.json()).features || []).find(x => x.properties?.osm_type === 'R');
-    if (f){ areaId = 3600000000 + f.properties.osm_id; label = f.properties.name || city; }
+    if (f){
+      areaId = 3600000000 + f.properties.osm_id; label = f.properties.name || city;
+      const [lon, lat] = f.geometry.coordinates, ex = f.properties.extent;   // [ovest, nord, est, sud]
+      box = ex ? {minLon: ex[0], maxLat: ex[1], maxLon: ex[2], minLat: ex[3]} : {minLat: lat - .03, maxLat: lat + .03, minLon: lon - .04, maxLon: lon + .04};
+      // limita le città molto estese (es. Roma) a un riquadro ragionevole attorno al centro
+      if (box.maxLat - box.minLat > .3){ box.minLat = lat - .15; box.maxLat = lat + .15; }
+      if (box.maxLon - box.minLon > .4){ box.minLon = lon - .2; box.maxLon = lon + .2; }
+    }
   }catch(e){}
+  if (box){
+    const prog = $('#cityprog');
+    const stops = spreadStops(await stopsInBox(box, cityCtrl?.signal), box);
+    if (prog) prog.textContent = `Leggo gli orari di ${stops.length} fermate…`;
+    const routes = await routesFromStops(stops, {signal: cityCtrl?.signal, onProgress: (d, t) => { const el = $('#cityprog'); if (el) el.textContent = `Leggo gli orari: ${d}/${t} fermate`; }});
+    if (routes.length) return {label, src: 'tt', routes: routes.map(r => ({...r, dirs: Object.entries(r.dirs)}))};
+    const el = $('#cityprog'); if (el) el.textContent = 'Negli orari non risultano corse a breve: provo OpenStreetMap…';
+  }
   const sel = areaId ? `area(${areaId})->.a;` : `area["name"="${city.replace(/"/g, '')}"]["boundary"="administrative"]["admin_level"~"^(7|8)$"]->.a;`;
   let els;
   try{
@@ -1787,18 +1877,19 @@ async function runCityLines(city, force){
   const key = 'city:' + city.toLowerCase().trim();
   if (force || !lcGet(key)){
     const t0 = Date.now();
-    out.innerHTML = `<div class="msg" role="status">Cerco tutte le linee di ${esc(city)}… <b id="citysec">0 s</b> (al massimo 90 s; poi resta salvata sul telefono)
-      <br><a href="#" id="citystop">Annulla</a></div>`;
+    out.innerHTML = `<div class="msg" role="status">Cerco tutte le linee di ${esc(city)}… <b id="citysec">0 s</b>
+      <br><small id="cityprog">Cerco il comune e le sue fermate…</small><br><a href="#" id="citystop">Annulla</a></div>`;
     cityTick = setInterval(() => { const el = $('#citysec'); if (el) el.textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 1000);
     $('#citystop').onclick = e => { e.preventDefault(); cityCtrl.abort(); citySeq++; clearInterval(cityTick); btn.disabled = false; out.innerHTML = '<div class="msg">Ricerca annullata.</div>'; };
   }
   try{
-    const res = await cachedGet(key, f => fetchCityLines(city, f || force), {force});
+    const res = await cachedGet(key, f => fetchCityLines(city, f || force), {force, fresh: 6 * 3600e3});
     clearInterval(cityTick);
     if (stale()) return;
     if (!res.v){ out.innerHTML = `<div class="msg">Nessuna linea trovata a ${esc(city)} nei dati OpenStreetMap. Controlla il nome del comune (es. "Aquileia").</div>`; return; }
     const label = res.v.label, els = res.v.els, center = null;
     let cl = (store('intervia.cities') || []).filter(x => x.toLowerCase() !== label.toLowerCase()); cl.unshift(label); store('intervia.cities', cl.slice(0, 8)); renderCityFavs();
+    if (res.v.src === 'tt'){ renderCityTT(res, city); return; }
     // raggruppa: tipo di mezzo → nome linea → percorsi (direzioni)
     cityLines = {label, center, groups: []};
     for (const [key, title, routes] of CITY_GROUPS){
@@ -1825,6 +1916,44 @@ async function runCityLines(city, force){
     });
   }catch(err){ clearInterval(cityTick); if (!stale() && err.name !== 'AbortError') out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
   finally{ if (!stale()) btn.disabled = false; }
+}
+const TT_GROUPS = [['metro','🚇 Metropolitana'], ['tram','🚊 Tram'], ['bus','🚌 Bus'], ['treno','🚆 Treni'], ['pullman','🚍 Autolinee e pullman'], ['traghetto','⛴️ Traghetti'], ['altro','🚡 Altri mezzi']];
+function renderCityTT(res, city){
+  const out = $('#lout'), {label, routes} = res.v;
+  const groups = TT_GROUPS.map(([g, title]) => ({title, lines: routes.filter(r => r.group === g).sort((a,b) => natCmp(a.name, b.name) || natCmp(a.agency, b.agency))})).filter(g => g.lines.length);
+  cityLines = {label, tt: groups};
+  out.innerHTML = `<div class="msg" style="margin-bottom:6px"><b>${esc(label)}</b>: ${routes.length} linee con corse nelle prossime ore, ricavate dagli orari. Tocca una linea per direzioni e fermate.
+      <br><small style="color:var(--mute)">Le linee senza corse in questo momento (es. di notte o nei festivi) possono non comparire. 📦 Salvato il ${fmtDay(res.t)} · <a href="#" id="cityref">↻ Aggiorna ora</a></small></div>` +
+    groups.map((g, gi) => `<div class="sec">${g.title} · ${g.lines.length}</div><div class="card"><div class="chips">${g.lines.map((r, li) =>
+      `<span class="chip" data-g="${gi}" data-l="${li}" ${r.color ? `style="border-color:#${esc(r.color)};box-shadow:inset 4px 0 0 #${esc(r.color)}"` : ''} title="${esc(r.agency)}">${esc(r.name.length > 22 ? r.name.slice(0, 20) + '…' : r.name)}</span>`).join('')}</div></div>`).join('') + '<div id="cityline"></div>';
+  $('#cityref').onclick = e => { e.preventDefault(); runCityLines(city, true); };
+  out.querySelectorAll('.chip[data-g]').forEach(ch => ch.onclick = () => {
+    out.querySelectorAll('.chip[data-g]').forEach(x => x.classList.toggle('on', x === ch));
+    showCityLineTT(groups[+ch.dataset.g].lines[+ch.dataset.l]);
+  });
+}
+function showCityLineTT(r){
+  const box = $('#cityline'), city = cityLines.label;
+  const favKey = 'line:' + (r.name + ' ' + city).toLowerCase();
+  box.innerHTML = `<div class="msg" style="margin:12px 0">Linea <b>${esc(r.name)}</b> · ${esc(r.agency)} · ${r.dirs.length} ${r.dirs.length === 1 ? 'direzione' : 'direzioni'}
+      <button type="button" class="favbtn" data-fav="${esc(favKey)}" data-favtype="line" data-favlabel="${esc(r.name + ' ' + city)}" style="float:right">${isFav(favKey) ? '★ Preferita' : '☆ Salva'}</button></div>` +
+    r.dirs.map(([hs, id], i) => `<div class="card it ttdir" data-i="${i}">
+      <div class="top"><div><span class="badge" ${r.color ? `style="background:#${esc(r.color)};color:#${esc(r.textColor || 'fff')}"` : ''}>${ICON[r.group] || '🚏'} ${esc(r.name)}</span> <b>→ ${esc(hs)}</b></div></div>
+      <div class="sub" style="font-size:13px;color:var(--mute);margin-top:4px">Prossima corsa<span style="float:right">Fermate ▾</span></div>
+      <div class="det"></div></div>`).join('');
+  box.querySelectorAll('.ttdir').forEach(cd => cd.addEventListener('click', async ev => {
+    if (ev.target.closest('a, button, .rmap, .dep')) return;
+    cd.classList.toggle('open');
+    const det = cd.querySelector('.det');
+    if (!cd.classList.contains('open') || det.dataset.done) return;
+    det.innerHTML = '<div class="sub">Carico le fermate…</div>';
+    const v = await variantFromTrip(r.dirs[+cd.dataset.i][1], r);
+    if (!v){ det.innerHTML = '<div class="sub">Questa corsa non è più disponibile: tocca "↻ Aggiorna ora" in alto per rileggere gli orari.</div>'; return; }
+    det.innerHTML = '';
+    renderLineStops(det, v.stops, r.name, v);
+  }));
+  bindFavButtons(box);
+  box.scrollIntoView({behavior:'smooth', block:'start'});
 }
 function showCityLine([ref, rels]){
   const box = $('#cityline'), city = cityLines.label;
