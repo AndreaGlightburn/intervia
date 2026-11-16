@@ -23,14 +23,16 @@ header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
 
-const VT = 'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/';
-const UA = 'Intervia/1.0 (+https://andreaglightburn.github.io/intervia)';
+const VT_BASES = ['https://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/', 'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/'];
+const UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 Intervia/1.1';
+$LAST_ERR = '';
 
 function out($data, $code = 200) { http_response_code($code); echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
 function fail($msg, $code = 502) { out(['ok' => false, 'error' => $msg], $code); }
 
 // Download con cache su file (evita di interrogare i siti a ogni richiesta)
 function fetch_url($url, $ttl) {
+    global $LAST_ERR;
     $dir = sys_get_temp_dir() . '/intervia_cache';
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
     $file = $dir . '/' . sha1($url);
@@ -40,13 +42,17 @@ function fetch_url($url, $ttl) {
         $ch = curl_init($url);
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15,
             CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '']);
-        $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json, text/plain, */*', 'Referer: https://www.viaggiatreno.it/infomobilita/index.jsp']);
+        $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($body === false) $LAST_ERR = curl_error($ch); elseif ($code >= 400) $LAST_ERR = 'HTTP ' . $code;
+        curl_close($ch);
     } else {
         $ctx = stream_context_create(['http' => ['timeout' => 15, 'header' => "User-Agent: " . UA . "\r\n"]]);
         $body = @file_get_contents($url, false, $ctx);
         $code = $body === false ? 0 : 200;
     }
     if ($body === false || $code >= 400 || $code === 0) {
+        if (!$LAST_ERR) $LAST_ERR = 'nessuna risposta';
         if (is_file($file)) return file_get_contents($file);   // meglio un dato vecchio che niente
         return false;
     }
@@ -82,10 +88,32 @@ function parse_rss($xml, $source) {
     return $items;
 }
 
+function vt($path, $ttl) {
+    global $LAST_ERR;
+    $errs = [];
+    foreach (VT_BASES as $b) {
+        $LAST_ERR = '';
+        $r = fetch_url($b . $path, $ttl);
+        if ($r !== false) return $r;
+        $errs[] = parse_url($b, PHP_URL_SCHEME) . ': ' . $LAST_ERR;
+    }
+    $LAST_ERR = implode(' · ', $errs);
+    return false;
+}
+
 $a = $_GET['a'] ?? '';
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init')]);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '1.1']);
+if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
+    $res = [];
+    foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
+              'rfi' => 'https://www.rfi.it/content/rfi/it/news-e-media/infomobilita.rss.updates.xml', 'mit' => 'https://scioperi.mit.gov.it/mit2/public/scioperi'] as $k => $u) {
+        $LAST_ERR = ''; $r = fetch_url($u, 0);
+        $res[$k] = $r === false ? 'ERRORE: ' . $LAST_ERR : 'ok (' . strlen($r) . ' byte)';
+    }
+    out(['ok' => true, 'diag' => $res]);
+}
 
 /* ---------- Treno per numero (ViaggiaTreno, servizio non ufficiale) ---------- */
 if ($a === 'train') {
@@ -94,8 +122,8 @@ if ($a === 'train') {
     $o = preg_replace('/[^A-Z0-9]/', '', strtoupper($_GET['o'] ?? ''));
     $d = preg_replace('/\D/', '', $_GET['d'] ?? '');
     if ($o === '' || $d === '') {
-        $txt = fetch_url(VT . 'cercaNumeroTrenoTrenoAutocomplete/' . $n, 300);
-        if ($txt === false) fail('ViaggiaTreno non risponde');
+        $txt = vt('cercaNumeroTrenoTrenoAutocomplete/' . $n, 300);
+        if ($txt === false) fail('ViaggiaTreno non risponde (' . $LAST_ERR . ')');
         $matches = [];
         foreach (preg_split('/\r?\n/', trim($txt)) as $line) {
             if (strpos($line, '|') === false) continue;
@@ -106,7 +134,7 @@ if ($a === 'train') {
         if (count($matches) !== 1) out(['ok' => true, 'matches' => $matches]);
         $o = $matches[0]['o']; $d = $matches[0]['d'];
     }
-    $json = fetch_url(VT . "andamentoTreno/$o/$n/$d", 45);
+    $json = vt("andamentoTreno/$o/$n/$d", 45);
     if ($json === false || trim($json) === '') fail('Dati del treno non disponibili (forse non circola oggi)', 404);
     $t = json_decode($json, true);
     if (!is_array($t)) fail('Risposta non valida da ViaggiaTreno');

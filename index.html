@@ -207,6 +207,7 @@ footer a{color:var(--mute)}
       </div>
       <div class="seg mt" id="stmode"><button type="button" class="on" data-v="dep">Partenze</button><button type="button" data-v="arr">Arrivi</button></div>
       <div class="recent" id="strecent"></div>
+      <div id="favstations" class="mt"></div>
     </div>
     <div id="stout"></div>
   </div>
@@ -219,6 +220,7 @@ footer a{color:var(--mute)}
       </div>
       <div class="sub" style="font-size:12px;color:var(--mute);margin-top:6px">Il numero è sul biglietto o sul tabellone. Dati in tempo reale da ViaggiaTreno.</div>
       <div class="recent" id="trrecent"></div>
+      <div id="favtrains" class="mt"></div>
     </form>
     <div id="tout"></div>
   </div>
@@ -246,6 +248,7 @@ footer a{color:var(--mute)}
         <input type="text" id="lineq" placeholder="es. S9, M4 Milano, bus 91, tram 9">
         <button class="go" type="submit" id="lgo" style="flex:0 0 auto;width:auto;margin:0;padding:10px 16px">Cerca</button>
       </div>
+      <div id="favlines" class="mt"></div>
       <div class="sub" style="font-size:12px;color:var(--mute);margin-top:6px">Aggiungi la città per cercare altrove (es. "M1 Roma"); altrimenti cerco vicino alla tua ultima posizione.</div>
     </form>
     <div id="lout"></div>
@@ -342,7 +345,7 @@ function liveLinks(l, g){
     const n = trainNumber(l);
     if (/trenord/i.test(ag)) out.push({label: n ? `Treno ${n} in tempo reale (Trenord)` : 'Circolazione Trenord', url: 'https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/' + (n ? '?train=' + n : '')});
     out.push({label: 'ViaggiaTreno' + (n ? ` (treno ${n})` : ''), url: 'http://www.viaggiatreno.it/infomobilita/index.jsp'});
-    if (n) out.unshift({label: `Segui il treno ${n}`, url: '#', train: n});
+    if (l.tripId) out.unshift({label: n ? `Segui il treno ${n}` : 'Segui la corsa', url: '#', trip: l.tripId, name: (l.displayName || l.routeShortName || '') + (n && !(l.displayName || '').includes(n) ? ' ' + n : '')});
     if (/trenitalia/i.test(ag)) out.push({label: 'Infomobilità Trenitalia', url: 'https://www.trenitalia.com/it/informazioni/Infomobilita/notizie-infomobilita.html'});
   } else if (/\batm\b|azienda trasporti milanesi/i.test(ag)){
     out.push({label: 'Avvisi ATM', url: 'https://www.atm.it/'});
@@ -792,7 +795,7 @@ function legHtml(l, ver){
   const sched = (x, s) => s && x && x !== s ? `<small>prev. ${fmtT(s)}</small>` : '';
   const track = (p) => p?.track ? ` · bin. ${esc(p.track)}${p.scheduledTrack && p.scheduledTrack !== p.track ? ` <span class="late">(era ${esc(p.scheduledTrack)})</span>` : ''}` : '';
   const stops = (l.intermediateStops || []).length;
-  const live = liveLinks(l, g).map(x => x.train ? `<a href="#" data-train="${esc(x.train)}">🚆 ${esc(x.label)}</a>` : `<a href="${esc(x.url)}" target="_blank" rel="noopener">📡 ${esc(x.label)}</a>`).join('');
+  const live = liveLinks(l, g).map(x => x.trip ? `<a href="#" data-trip="${esc(x.trip)}" data-tripname="${esc(x.name)}">🚆 ${esc(x.label)}</a>` : `<a href="${esc(x.url)}" target="_blank" rel="noopener">📡 ${esc(x.label)}</a>`).join('');
   const legKey = 'L' + (++legSeq); legStore[legKey] = l;
   const name = l.displayName || l.routeShortName || NAME[g];
   const tix = ticketLinks(l).map(t => `<a class="${t.main ? 'main' : ''}" href="${esc(t.url)}" target="_blank" rel="noopener">🎫 ${esc(t.label)}</a>`).join('');
@@ -861,7 +864,7 @@ const ROUTE_ICON = {train:'🚆', light_rail:'🚆', subway:'🚇', tram:'🚊',
 async function overpass(q){
   let last = 'Servizio linee non disponibile';
   for (const url of OVERPASS_SERVERS){
-    const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), 25000);
+    const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), 12000);
     try{
       const r = await fetch(url, {method:'POST', body:'data=' + encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}, signal:ctrl.signal});
       if (r.ok){ const j = await r.json(); clearTimeout(tm); return j; }
@@ -906,33 +909,53 @@ $('#tabs').addEventListener('click', e => {
   $('#tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   showTab(b.dataset.t, true);
 });
-$('#lf').addEventListener('submit', async e => {
-  e.preventDefault();
-  const pq = parseLineQuery($('#lineq').value.trim());
+$('#lf').addEventListener('submit', e => { e.preventDefault(); runLineSearch($('#lineq').value.trim()); });
+async function runLineSearch(text){
+  const pq = parseLineQuery(text);
   const out = $('#lout');
   if (!pq){ out.innerHTML = '<div class="msg">Scrivi il nome della linea, es. "S9", "M4", "metro 2 Milano", "bus 91".</div>'; return; }
   const ref = pq.label;
-  out.innerHTML = '<div class="msg">Cerco la linea… (può richiedere qualche secondo)</div>';
+  out.innerHTML = '<div class="msg">Cerco la linea…</div>';
   const btn = $('#lgo'); btn.disabled = true;
   try{
     let c = (sel.from && sel.from.lat != null) ? sel.from : (store('intervia.bias') || {lat:DEFAULT_C[0], lon:DEFAULT_C[1]});
     if (pq.place){
       try{
-        const r = await fetch(`${PHOTON}?q=${encodeURIComponent(pq.place)}&limit=1&osm_tag=place&bbox=6.6,35.4,18.6,47.1`);
+        const r = await withTimeout(fetch(`${PHOTON}?q=${encodeURIComponent(pq.place)}&limit=1&osm_tag=place&bbox=6.6,35.4,18.6,47.1`), 8000);
         const f = (await r.json()).features?.[0];
-        if (f){ c = {lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0]}; }
+        if (f) c = {lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0]};
       }catch(e){}
     }
     lineCenter = c;
+    const favKey = 'line:' + text.toLowerCase();
+    const head = (n, src) => `<div class="msg" style="margin-bottom:12px">${n} ${src === 'live' ? 'direzioni' : 'percorsi'} per la linea "${esc(ref)}"${src === 'live' ? ' (corse delle prossime ore)' : ' (ogni direzione è un percorso a parte)'}
+      <button type="button" class="favbtn" data-fav="${esc(favKey)}" data-favtype="line" data-favlabel="${esc(text)}" style="float:right">${isFav(favKey) ? '★ Preferita' : '☆ Salva'}</button></div>`;
+    // 1) dagli orari (Transitous): corse della linea in zona nelle prossime ore
+    const live = await lineFromTimetable(pq, c).catch(() => []);
+    if (live.length){
+      out.innerHTML = head(live.length, 'live') + live.map((v, i) => `<div class="card it lvar" data-i="${i}">
+          <div class="top"><div><span class="badge" ${v.color ? `style="background:#${esc(v.color)};color:#${esc(v.textColor || 'fff')}"` : ''}>${ICON[v.group] || '🚏'} ${esc(v.name)}</span> <b>${esc(v.from)} → ${esc(v.to)}</b></div>
+          <div class="dur">${v.stops.length} fermate</div></div>
+          <div class="sub" style="font-size:13px;color:var(--mute);margin-top:4px">${esc(v.agency || '')}<span style="float:right">Fermate ▾</span></div>
+          <div class="det"></div></div>`).join('');
+      out.querySelectorAll('.lvar').forEach(cd => cd.addEventListener('click', ev => {
+        if (ev.target.closest('a, button, .rmap, .dep')) return;
+        cd.classList.toggle('open');
+        if (cd.classList.contains('open')) renderLineStops(cd.querySelector('.det'), live[+cd.dataset.i].stops, live[+cd.dataset.i].name, live[+cd.dataset.i]);
+      }));
+      bindFavButtons(out); return;
+    }
+    // 2) in alternativa da OpenStreetMap
+    out.innerHTML = '<div class="msg">Nessuna corsa a breve negli orari: cerco la linea su OpenStreetMap…</div>';
     const bb = `${(c.lat - .45).toFixed(4)},${(c.lon - .6).toFixed(4)},${(c.lat + .45).toFixed(4)},${(c.lon + .6).toFixed(4)}`;
-    const q = `[out:json][timeout:25];(${pq.refs.map(r => `relation["type"="route"]["ref"="${r.replace(/"/g, '')}"](${bb});`).join('')});out tags center;`;
+    const q = `[out:json][timeout:20];(${pq.refs.map(r => `relation["type"="route"]["ref"="${r.replace(/"/g, '')}"](${bb});`).join('')});out tags center;`;
     const data = await overpass(q);
     const OK = ['train','light_rail','subway','tram','bus','trolleybus','ferry','monorail','coach'];
     const km = x => x.center ? Math.hypot((x.center.lat - c.lat) * 111, (x.center.lon - c.lon) * 78) : 999;
     const rels = (data.elements || []).filter(x => OK.includes(x.tags?.route) && (!pq.modes || pq.modes.includes(x.tags.route)))
       .sort((a,b) => km(a) - km(b)).slice(0, 25);
     if (!rels.length){ out.innerHTML = `<div class="msg">Nessuna linea "${esc(ref)}" trovata entro circa 50 km${pq.place ? ' da ' + esc(pq.place) : ''}. Prova ad aggiungere la città, es. "${esc(ref)} Milano".</div>`; return; }
-    out.innerHTML = `<div class="msg" style="margin-bottom:12px">${rels.length} percorsi per la linea "${esc(ref)}" (ogni direzione è un percorso a parte)</div>` +
+    out.innerHTML = head(rels.length, 'osm') +
       rels.map(r => {
         const t = r.tags || {}, ic = ROUTE_ICON[t.route] || '🚏';
         const col = t.colour && /^#?[0-9a-f]{3,6}$/i.test(t.colour) ? (t.colour[0] === '#' ? t.colour : '#' + t.colour) : null;
@@ -948,9 +971,85 @@ $('#lf').addEventListener('submit', async e => {
       cd.classList.toggle('open');
       if (cd.classList.contains('open')) loadLine(cd);
     }));
+    bindFavButtons(out);
   }catch(err){ out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
   finally{ btn.disabled = false; }
-});
+}
+function withTimeout(promise, ms){
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('Il servizio non ha risposto in tempo, riprova.')), ms))]);
+}
+// Linee dagli orari Transitous: corse in zona nelle prossime 2 ore con quel nome di linea
+async function lineFromTimetable(pq, c){
+  const now = new Date(), end = new Date(now.getTime() + 2 * 3600e3);
+  const min = `${(c.lat - .3).toFixed(4)},${(c.lon - .4).toFixed(4)}`, max = `${(c.lat + .3).toFixed(4)},${(c.lon + .4).toFixed(4)}`;
+  let segs = null;
+  for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
+    try{
+      const r = await withTimeout(fetch(`${API}/api/${ver}/map/trips?min=${min}&max=${max}&startTime=${now.toISOString()}&endTime=${end.toISOString()}&zoom=11`), 15000);
+      if (r.ok){ segs = await r.json(); if (!planVer) planVer = ver; break; }
+    }catch(e){}
+  }
+  if (!Array.isArray(segs)) return [];
+  const want = new Set(pq.refs.map(r => r.toLowerCase().replace(/\s/g, '')));
+  const hit = v => v && want.has(String(v).toLowerCase().replace(/\s/g, ''));
+  const trips = new Map();
+  for (const sg of segs){
+    if (pq.modes){ const g = modeGroup(sg.mode, planVer || 'v5'); const ok = {subway:'metro', light_rail:'treno', train:'treno', tram:'tram', bus:'bus', trolleybus:'bus', coach:'pullman'}; if (!pq.modes.some(m => ok[m] === g)) continue; }
+    for (const t of (sg.trips || [])){
+      if ((hit(t.routeShortName) || hit(t.displayName) || hit(String(t.displayName || '').split(' ')[0])) && !trips.has(t.tripId))
+        trips.set(t.tripId, {sg, t});
+    }
+  }
+  const ids = [...trips.keys()].slice(0, 10);
+  const vars = new Map();
+  await Promise.all(ids.map(async id => {
+    const tr = await fetchTrip(id).catch(() => null);
+    const l = tr && (tr.legs || []).find(x => x.tripId === id) || (tr && tr.legs && tr.legs[0]);
+    if (!l) return;
+    const stops = [l.from, ...(l.intermediateStops || []), l.to].filter(Boolean);
+    const key = stops[0].name + '→' + stops[stops.length - 1].name;
+    const info = trips.get(id);
+    if (!vars.has(key) || stops.length > vars.get(key).stops.length)
+      vars.set(key, {key, from: stops[0].name, to: stops[stops.length - 1].name, stops, name: l.displayName || l.routeShortName || info.t.routeShortName,
+        color: l.routeColor || info.sg.routeColor, textColor: l.routeTextColor, agency: l.agencyName, group: modeGroup(l.mode, planVer || 'v5'), geom: l.legGeometry, tripId: id});
+  }));
+  return [...vars.values()].sort((a,b) => a.key.localeCompare(b.key));
+}
+function renderLineStops(det, stops, ref, v){
+  if (det.dataset.done) return; det.dataset.done = '1';
+  det.innerHTML = `<div class="rmap"></div>
+    <ol class="stl">${stops.map((s,i) => {
+      const t = s.departure || s.arrival, sch = s.scheduledDeparture || s.scheduledArrival, d = delayMin(t, sch);
+      return `<li data-i="${i}"><span class="tm">${t ? fmtT(t) : ''}</span><span>${esc(s.name)}${s.track ? ` <span style="color:var(--mute)">bin. ${esc(s.track)}</span>` : ''}${d > 0 ? ` <span class="late">+${d}′</span>` : ''}</span><span class="act"><button type="button" data-a="dep">Partenze</button><button type="button" data-a="from">Da qui</button><button type="button" data-a="to">A qui</button></span><div class="dep" hidden></div></li>`;
+    }).join('')}</ol>
+    ${v && v.tripId ? `<div class="live"><a href="#" data-trip="${esc(v.tripId)}" data-tripname="${esc(v.name)}">🚆 Segui questa corsa</a></div>` : ''}
+    <div class="sub" style="font-size:11px;color:var(--mute);margin-top:6px">Orari della prossima corsa in questa direzione.</div>`;
+  if (hasL()){
+    const el = det.querySelector('.rmap');
+    const m = L.map(el, {scrollWheelZoom:false}); L.tileLayer(TILE, {maxZoom:19, attribution:TILE_ATTR}).addTo(m);
+    let pts = v && v.geom && v.geom.points ? decodePolyline(v.geom.points, v.geom.precision || 6) : [];
+    if (pts.length < 2) pts = stops.map(s => [s.lat, s.lon]);
+    const col = v && v.color ? '#' + v.color : '#2563EB';
+    L.polyline(pts, {color:col, weight:5}).addTo(m);
+    stops.forEach((s,i) => L.circleMarker([s.lat, s.lon], {radius:5, color:col, weight:3, fillColor:'#fff', fillOpacity:1}).addTo(m).bindPopup(`${i+1}. ${esc(s.name)}`));
+    m.fitBounds(L.latLngBounds(pts), {padding:[20,20]}); setTimeout(() => m.invalidateSize(), 60);
+  }
+  det.querySelectorAll('li[data-i]').forEach(li => li.addEventListener('click', async ev => {
+    const b = ev.target.closest('button[data-a]'); if (!b) return;
+    ev.stopPropagation();
+    const s = stops[+li.dataset.i], a = b.dataset.a;
+    if (a === 'from' || a === 'to'){
+      sel[a] = {label: s.name, place: s.stopId || `${s.lat},${s.lon}`, lat: s.lat, lon: s.lon};
+      $('#' + a).value = s.name;
+      b.textContent = '✓'; setTimeout(() => b.textContent = a === 'from' ? 'Da qui' : 'A qui', 1500);
+      return;
+    }
+    const box = li.querySelector('.dep');
+    if (!box.hidden){ box.hidden = true; return; }
+    box.hidden = false; box.innerHTML = 'Carico le partenze…';
+    box.innerHTML = await departuresHtml({lat: s.lat, lon: s.lon, id: s.stopId}, ref);
+  }));
+}
 async function loadLine(cd){
   const det = cd.querySelector('.det'); if (det.dataset.done) return;
   det.dataset.done = '1'; det.innerHTML = '<div class="sub">Carico le fermate…</div>';
@@ -1007,7 +1106,7 @@ async function loadLine(cd){
 }
 async function departuresHtml(s, ref){
   try{
-    const st = await nearestStop(`${s.lat},${s.lon}`);
+    const st = s.id ? {id: s.id, name: s.name || ''} : await nearestStop(`${s.lat},${s.lon}`);
     if (!st) return 'Fermata non trovata negli orari.';
     let data = null;
     for (const ver of [planVer, 'v5', 'v4', 'v1'].filter((v,i,a) => v && a.indexOf(v) === i)){
@@ -1083,7 +1182,7 @@ async function loadBoard(){
   if (!data){ out.innerHTML = '<div class="msg err">Tabellone non disponibile.</div>'; return; }
   const list = data.stopTimes || [];
   const now = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
-  out.innerHTML = `<div class="msg" style="margin-bottom:12px"><b>${esc(stSel.name)}</b> · ${stArr ? 'arrivi' : 'partenze'} · aggiornato alle ${now} <a href="#" id="strefresh" style="float:right">↻ Aggiorna</a></div>` +
+  out.innerHTML = `<div class="msg" style="margin-bottom:12px"><b>${esc(stSel.name)}</b> · ${stArr ? 'arrivi' : 'partenze'} · aggiornato alle ${now}<br><button type="button" class="favbtn" data-fav="station:${esc(stSel.id)}" data-favtype="station" data-favlabel="${esc(stSel.name)}" data-favdata="${esc(JSON.stringify(stSel))}" style="border:0;background:none;color:var(--pri);padding:4px 0;cursor:pointer;font-size:14px">${isFav('station:' + stSel.id) ? '★ Preferita' : '☆ Salva stazione'}</button> <a href="#" id="strefresh" style="float:right">↻ Aggiorna</a></div>` +
     (list.length ? `<div class="card">${list.map(x => {
       const p = x.place || {}, t = stArr ? (p.arrival || p.departure) : (p.departure || p.arrival);
       const sch = stArr ? (p.scheduledArrival || p.scheduledDeparture) : (p.scheduledDeparture || p.scheduledArrival);
@@ -1093,9 +1192,10 @@ async function loadBoard(){
       return `<div class="leg"><div class="t">${fmtT(t)}${d > 0 ? `<small class="late">+${d}′</small>` : (x.realTime ? '<small class="ontime">in orario</small>' : '')}</div>
         <div class="what"><span class="badge" ${x.routeColor ? st(x) : ''}>${ICON[g] || '🚏'} ${esc(x.displayName || x.routeShortName || NAME[g])}</span>
         ${stArr ? 'da' : '→'} <b>${esc(x.headsign || '')}</b>${x.cancelled || p.cancelled ? ' <span class="canc">soppresso</span>' : ''}
-        <div class="sub">${p.track ? `Binario ${esc(p.track)}${p.scheduledTrack && p.scheduledTrack !== p.track ? ` <span class="late">(era ${esc(p.scheduledTrack)})</span>` : ''} · ` : ''}${esc(x.agencyName || '')}${n && /trenord/i.test(x.agencyName || '') ? ` · <a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/?train=${n}" target="_blank" rel="noopener">📡 treno ${n}</a>` : ''}</div></div></div>`;
+        <div class="sub">${p.track ? `Binario ${esc(p.track)}${p.scheduledTrack && p.scheduledTrack !== p.track ? ` <span class="late">(era ${esc(p.scheduledTrack)})</span>` : ''} · ` : ''}${esc(x.agencyName || '')}${x.tripId ? ` · <a href="#" data-trip="${esc(x.tripId)}" data-tripname="${esc((x.displayName || x.routeShortName || '') + (n && !(x.displayName || '').includes(n) ? ' ' + n : ''))}">🚆 ${n ? 'treno ' + n : 'segui la corsa'}</a>` : ''}</div></div></div>`;
     }).join('')}</div>` : '<div class="msg">Nessun passaggio nelle prossime ore.</div>');
   $('#strefresh').onclick = e => { e.preventDefault(); loadBoard(); };
+  bindFavButtons(out);
   stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(); }, 60000);
 }
 
@@ -1147,7 +1247,7 @@ async function openTrain(n, o, d){
     trTimer = setInterval(() => { if (!$('#tab-train').hidden && !document.hidden && trCur) openTrain(trCur.n, trCur.o, trCur.d); }, 60000);
   }catch(err){ out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
 }
-function renderTrain(t){
+function renderTrain(t, tripCtx){
   const st = t.stops || [];
   let lastIdx = -1; st.forEach((s, i) => { if (s.depReal || s.arrReal) lastIdx = i; });
   const del = t.delay;
@@ -1167,11 +1267,78 @@ function renderTrain(t){
     <div class="txt">${esc(t.origin)} → ${esc(t.destination)}</div>
     ${t.lastStation && t.lastStation !== '--' ? `<div class="meta">📍 Ultimo rilevamento: ${esc(t.lastStation)} ${t.lastTime ? 'alle ' + msT(t.lastTime) : ''}</div>` : ''}
     ${t.notes ? `<div class="meta">${esc(t.notes)}</div>` : ''}
-    <div class="live"><a href="#" id="trref">↻ Aggiorna</a><a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/?train=${esc(t.number)}" target="_blank" rel="noopener">📡 Pagina Trenord</a><a href="http://www.viaggiatreno.it/infomobilita/index.jsp" target="_blank" rel="noopener">📡 ViaggiaTreno</a></div>
+    <div class="live"><a href="#" id="trref">↻ Aggiorna</a>${t.number ? `<button type="button" class="favbtn" data-fav="train:${esc(t.number)}" data-favtype="train" data-favlabel="${esc(t.number)}" style="border:0;font-size:12px;padding:4px 8px;border-radius:8px;background:var(--pri2);color:var(--pri);cursor:pointer">${isFav('train:' + t.number) ? '★ Preferito' : '☆ Salva treno ' + esc(t.number)}</button>` : ''}<a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/${t.number ? '?train=' + esc(t.number) : ''}" target="_blank" rel="noopener">📡 Pagina Trenord</a><a href="http://www.viaggiatreno.it/infomobilita/index.jsp" target="_blank" rel="noopener">📡 ViaggiaTreno</a></div>
   </div>
-  <div class="card"><ol class="stl">${rows}</ol><div class="sub" style="font-size:12px">Si aggiorna da solo ogni minuto.</div></div>`;
-  $('#trref').onclick = e => { e.preventDefault(); openTrain(trCur.n, trCur.o, trCur.d); };
+  <div class="card"><ol class="stl">${rows}</ol><div class="sub" style="font-size:12px">Si aggiorna da solo ogni minuto. Se la pagina Trenord si apre bianca, torna indietro e riaprila: la seconda volta si carica.</div></div>`;
+  $('#trref').onclick = e => { e.preventDefault(); if (tripCtx) openTrip(tripCtx.tripId, tripCtx.name); else openTrain(trCur.n, trCur.o, trCur.d); };
+  bindFavButtons($('#tout'));
 }
+async function openTrip(tripId, name){
+  clearInterval(trTimer); trCur = null;
+  showTab('train');
+  const out = $('#tout'); out.innerHTML = '<div class="msg">Carico la corsa…</div>';
+  const tr = await fetchTrip(tripId);
+  const l = tr && ((tr.legs || []).find(x => x.tripId === tripId) || (tr.legs || [])[0]);
+  if (!l){ out.innerHTML = '<div class="msg err">Corsa non disponibile.</div>'; return; }
+  const now = Date.now(), P = x => x ? Date.parse(x) : null;
+  const all = [l.from, ...(l.intermediateStops || []), l.to];
+  const stops = all.map((s, i) => {
+    const arr = P(s.arrival), dep = P(s.departure);
+    return {name: s.name, type: i === 0 ? 'P' : i === all.length - 1 ? 'A' : 'F',
+      arrSched: P(s.scheduledArrival), depSched: P(s.scheduledDeparture),
+      arrReal: arr && arr < now && i > 0 ? arr : null, depReal: dep && dep < now && i < all.length - 1 ? dep : null,
+      delayArr: delayMin(s.arrival, s.scheduledArrival), delayDep: delayMin(s.departure, s.scheduledDeparture),
+      track: s.track, trackSched: s.scheduledTrack, cancelled: !!s.cancelled};
+  });
+  let last = -1; stops.forEach((s, i) => { if (s.depReal || s.arrReal) last = i; });
+  const ls = last >= 0 ? stops[last] : null;
+  const n = trainNumber(l);
+  renderTrain({name: name || l.displayName || l.routeShortName || 'Corsa', number: n || '', origin: all[0].name, destination: all[all.length-1].name,
+    delay: l.realTime ? (ls ? (ls.depReal ? ls.delayDep : ls.delayArr) : delayMin(l.from.departure, l.from.scheduledDeparture)) : 0,
+    lastStation: ls ? ls.name : null, lastTime: ls ? (ls.depReal || ls.arrReal) : null, cancelled: !!l.cancelled,
+    notes: (l.agencyName || '') + (l.realTime ? ' · dati in tempo reale' : ' · orario programmato'), stops}, {tripId, name});
+  trTimer = setInterval(() => { if (!$('#tab-train').hidden && !document.hidden) openTrip(tripId, name); }, 60000);
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-trip]'); if (!a) return;
+  e.preventDefault(); e.stopPropagation();
+  openTrip(a.dataset.trip, a.dataset.tripname);
+}, true);
+
+/* ---------- Preferiti ---------- */
+const favs = () => store('intervia.favs') || [];
+const isFav = k => favs().some(f => f.key === k);
+function toggleFav(f){
+  let list = favs();
+  if (list.some(x => x.key === f.key)) list = list.filter(x => x.key !== f.key); else list.unshift(f);
+  store('intervia.favs', list); renderFavs();
+}
+function bindFavButtons(root){
+  root.querySelectorAll('.favbtn').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    toggleFav({key: b.dataset.fav, type: b.dataset.favtype, label: b.dataset.favlabel, data: b.dataset.favdata ? JSON.parse(b.dataset.favdata) : null});
+    b.textContent = isFav(b.dataset.fav) ? '★ ' + (b.dataset.favtype === 'line' ? 'Preferita' : 'Preferito') : '☆ Salva';
+  });
+}
+const FAV_ICON = {line:'🚉', train:'🚆', station:'🕒'};
+function renderFavs(){
+  const list = favs();
+  for (const [type, boxId] of [['line','favlines'], ['train','favtrains'], ['station','favstations']]){
+    const box = $('#' + boxId); if (!box) continue;
+    const items = list.filter(f => f.type === type);
+    box.innerHTML = items.length ? `<div class="sec" style="margin:4px 0 6px">★ Preferiti <a href="#" class="favedit" style="float:right;text-transform:none;font-weight:400">${box.dataset.edit ? 'Fine' : 'Modifica'}</a></div>` +
+      `<div class="recent">${items.map(f => `<button type="button" data-k="${esc(f.key)}">${box.dataset.edit ? '✕ ' : '★ '}${esc(f.label)}</button>`).join('')}</div>` : '';
+    box.querySelector('.favedit')?.addEventListener('click', e => { e.preventDefault(); if (box.dataset.edit) delete box.dataset.edit; else box.dataset.edit = '1'; renderFavs(); });
+    box.querySelectorAll('button[data-k]').forEach(b => b.onclick = () => {
+      const f = list.find(x => x.key === b.dataset.k); if (!f) return;
+      if (box.dataset.edit){ toggleFav(f); return; }
+      if (type === 'line'){ $('#lineq').value = f.label; runLineSearch(f.label); }
+      if (type === 'train'){ $('#trainq').value = f.label.replace(/\D/g, ''); openTrain(f.label.replace(/\D/g, '')); }
+      if (type === 'station' && f.data) openStation(f.data);
+    });
+  }
+}
+
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-train]'); if (!a) return;
   e.preventDefault(); e.stopPropagation();
@@ -1265,6 +1432,7 @@ function renderAlerts(){
   }).join('');
 }
 
+renderFavs();
 function showMsg(t, err){ $('#out').innerHTML = `<div class="msg ${err ? 'err' : ''}">${esc(t)}</div>`; }
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
