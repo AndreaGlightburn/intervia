@@ -157,5 +157,36 @@ await test('controllo aggiornamenti: confronto versioni', async () => {
   assert.ok(w.eval("vNum('2.10.0') > vNum('2.9.9') && vNum('2.1.0') === vNum('2.1.0') && !(vNum('2.0.9') > vNum('2.1.0'))"));
 });
 
+await test('linee di una città: server bloccato, risponde il collegamento diretto entro pochi secondi', async () => {
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('api.php')) return new Promise((_, rej) => o.signal?.addEventListener('abort', () => rej(new w.DOMException('a', 'AbortError'))));   // server che non risponde
+    if (u.includes('photon')) return json(w, { features: [] });
+    if (u.includes('interpreter')) return json(w, { elements: [{ type: 'relation', id: 7, tags: { ref: '1', route: 'bus', name: 'Bus 1' } }] });
+    return json(w, []);
+  });
+  const t0 = Date.now();
+  w.eval("runCityLines('Udine')");
+  assert.ok(await until(() => /1 linee/.test(d.getElementById('lout').textContent), 9000), d.getElementById('lout').textContent);
+  assert.ok(Date.now() - t0 < 9000);
+});
+await test('linee di una città: tutto non disponibile → errore con entrambe le cause, nessuna attesa infinita', async () => {
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('api.php')) return Promise.reject(new TypeError('fail'));
+    if (u.includes('interpreter')) return json(w, {}, 504);
+    return json(w, { features: [] });
+  });
+  w.eval("runCityLines('Udine')");
+  assert.ok(await until(() => /Server dati:.*Collegamento diretto:/.test(d.getElementById('lout').textContent), 9000), d.getElementById('lout').textContent);
+  assert.equal(d.getElementById('citygo').disabled, false);
+});
+await test('linee di una città: "Annulla" ferma la ricerca', async () => {
+  const { w, d } = await boot((u, o, w) => u.includes('photon') ? json(w, { features: [] }) : new Promise((_, rej) => o.signal?.addEventListener('abort', () => rej(new w.DOMException('a', 'AbortError')))));
+  w.eval("runCityLines('Udine')");
+  assert.ok(await until(() => d.getElementById('citystop')));
+  d.getElementById('citystop').click();
+  await sleep(100);
+  assert.match(d.getElementById('lout').textContent, /annullata/); assert.equal(d.getElementById('citygo').disabled, false);
+});
+
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);

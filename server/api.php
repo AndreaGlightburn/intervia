@@ -152,13 +152,15 @@ if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heav
 housekeeping();
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.1']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.2']);
 if ($a === 'diag') {   // verifica raggiungibilità delle fonti dal server
-    $res = [];
+    $res = ['max_execution_time' => ini_get('max_execution_time') . ' s', 'outbound' => ini_get('allow_url_fopen') ? 'allow_url_fopen on' : 'allow_url_fopen off'];
     foreach (['vt_https' => VT_BASES[0] . 'cercaNumeroTrenoTrenoAutocomplete/9660', 'vt_http' => VT_BASES[1] . 'cercaNumeroTrenoTrenoAutocomplete/9660',
-              'rfi' => 'https://www.rfi.it/content/rfi/it/news-e-media/infomobilita.rss.updates.xml', 'mit' => 'https://scioperi.mit.gov.it/mit2/public/scioperi'] as $k => $u) {
-        $LAST_ERR = ''; $r = fetch_url($u, 0);
-        $res[$k] = $r === false ? 'ERRORE: ' . $LAST_ERR : 'ok (' . strlen($r) . ' byte)';
+              'rfi' => 'https://www.rfi.it/content/rfi/it/news-e-media/infomobilita.rss.updates.xml', 'mit' => 'https://scioperi.mit.gov.it/mit2/public/scioperi',
+              'overpass_de' => 'https://overpass-api.de/api/interpreter?data=' . rawurlencode('[out:json][timeout:10];node(1);out;'),
+              'overpass_kumi' => 'https://overpass.kumi.systems/api/interpreter?data=' . rawurlencode('[out:json][timeout:10];node(1);out;')] as $k => $u) {
+        $LAST_ERR = ''; $t0 = microtime(true); $r = fetch_url($u, 0, 20);
+        $res[$k] = ($r === false ? 'ERRORE: ' . $LAST_ERR : 'ok (' . strlen($r) . ' byte)') . ' in ' . round(microtime(true) - $t0, 1) . ' s';
     }
     out(['ok' => true, 'diag' => $res]);
 }
