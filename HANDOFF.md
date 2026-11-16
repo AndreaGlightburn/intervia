@@ -2,7 +2,7 @@
 
 **Data:** 16/11/2026 · **Base:** commit `9b96d90` · **Rilascio:** vedi commit successivo su `main`
 **Repository:** https://github.com/AndreaGlightburn/intervia · **App:** https://andreaglightburn.github.io/intervia/
-**Server PHP:** `server/api.php` → da caricare su `https://www.iz2oii.eu/intervia/api.php` (versione **2.0.3**)
+**Server PHP:** `server/api.php` → da caricare su `https://www.iz2oii.eu/intervia/api.php` (versione **2.0.4**)
 
 ---
 
@@ -54,7 +54,7 @@ Punti principali in `index.html`: `fetchT`, `NetError`, `callPlan` (parametri fa
 8. Modalità aereo: messaggio "Connessione non riuscita", pulsante di nuovo attivo.
 9. Pulsanti "Sito … (biglietti)" aprono il sito dell'operatore.
 10. App installata: dopo l'aggiornamento compaiono il chip "🚡 Altri" e gli ordinamenti (se no: chiudere e riaprire).
-11. Server: `api.php?a=ping` → `"version":"2.0.3"`; `api.php?a=diag` → stato delle fonti.
+11. Server: `api.php?a=ping` → `"version":"2.0.4"`; `api.php?a=diag` → stato delle fonti.
 
 ## 4. Problemi aperti
 - **Validazione su dati reali** dei punti 1, 2, 3 e 5 della checklist.

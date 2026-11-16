@@ -67,7 +67,11 @@ function housekeeping() {
 }
 
 const VT_BASES = ['https://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/', 'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/'];
-const UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 Intervia/1.1';
+// ViaggiaTreno risponde solo a richieste "da browser"; tutti gli altri servizi (in particolare OpenStreetMap,
+// che rifiuta con 406 chi si finge un browser) ricevono un'identificazione onesta, come chiedono le loro regole d'uso.
+const UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 Intervia/2.0';
+const UA_HONEST = 'Intervia/2.0 (app di trasporto pubblico; +https://andreaglightburn.github.io/intervia/)';
+function ua_for($url) { return strpos((string)parse_url($url, PHP_URL_HOST), 'viaggiatreno') !== false ? UA : UA_HONEST; }
 $LAST_ERR = '';
 
 function out($data, $code = 200) { http_response_code($code); echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
@@ -84,14 +88,14 @@ function fetch_url($url, $ttl, $timeout = 15) {
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '',
+            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => ua_for($url), CURLOPT_ENCODING => '',
             CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_MAXREDIRS => 3]);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json, text/plain, */*', 'Referer: https://www.viaggiatreno.it/infomobilita/index.jsp']);
+        if (ua_for($url) === UA) curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json, text/plain, */*', 'Referer: https://www.viaggiatreno.it/infomobilita/index.jsp']);
         $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         if ($body === false) $LAST_ERR = curl_error($ch); elseif ($code >= 400) $LAST_ERR = 'HTTP ' . $code;
         curl_close($ch);
     } else {
-        $ctx = stream_context_create(['http' => ['timeout' => 15, 'header' => "User-Agent: " . UA . "\r\n"]]);
+        $ctx = stream_context_create(['http' => ['timeout' => $timeout, 'header' => "User-Agent: " . ua_for($url) . "\r\n"]]);
         $body = @file_get_contents($url, false, $ctx);
         $code = $body === false ? 0 : 200;
     }
@@ -152,7 +156,7 @@ if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heav
 housekeeping();
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.3']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.4']);
 if ($a === 'diag') {   // verifica in PARALLELO se il server raggiunge le fonti (risposta entro ~10 s)
     @set_time_limit(30);
     $q = rawurlencode('[out:json][timeout:5];node(1);out;');
@@ -163,6 +167,7 @@ if ($a === 'diag') {   // verifica in PARALLELO se il server raggiunge le fonti 
         'mit' => 'https://scioperi.mit.gov.it/mit2/public/scioperi',
         'overpass_de' => 'https://overpass-api.de/api/interpreter?data=' . $q,
         'overpass_kumi' => 'https://overpass.kumi.systems/api/interpreter?data=' . $q,
+        'overpass_coffee' => 'https://overpass.private.coffee/api/interpreter?data=' . $q,
         'google (controllo generico)' => 'https://www.google.com/generate_204',
     ];
     $res = ['php' => PHP_VERSION, 'max_execution_time' => ini_get('max_execution_time') . ' s', 'curl' => function_exists('curl_multi_init') ? 'sì' : 'no'];
@@ -171,7 +176,7 @@ if ($a === 'diag') {   // verifica in PARALLELO se il server raggiunge le fonti 
     foreach ($targets as $k => $u) {
         $ch = curl_init($u);
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 9,
-            CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '', CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS]);
+            CURLOPT_USERAGENT => ua_for($u), CURLOPT_ENCODING => '', CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS]);
         curl_multi_add_handle($mh, $ch); $hs[$k] = $ch;
     }
     $t0 = microtime(true);
@@ -299,7 +304,7 @@ function osm_cache_file($ql) {
 }
 function overpass_fetch($ql) {
     global $LAST_ERR;
-    $servers = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+    $servers = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
     $timeout = strpos($ql, 'area') !== false ? 130 : 60;
     $errs = [];
     if (!function_exists('curl_multi_init')) {          // senza cURL: un server alla volta
@@ -317,7 +322,7 @@ function overpass_fetch($ql) {
     foreach ($servers as $srv) {
         $ch = curl_init($srv . '?data=' . rawurlencode($ql));
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA, CURLOPT_ENCODING => '',
+            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => UA_HONEST, CURLOPT_ENCODING => '',
             CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_MAXREDIRS => 3]);
         curl_multi_add_handle($mh, $ch); $hs[] = [$ch, $srv];
     }
