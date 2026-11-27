@@ -1,35 +1,23 @@
 # HANDOFF — Intervia
 
-## 0. RIPARTENZA (27/11/2026) — leggere per primo
+## 0. RIPARTENZA — leggere per primo
 
-**Stato pubblicato:** `main` = **v2.4.1** (commit `8396805`), online su https://andreaglightburn.github.io/intervia/ · server `server/api.php` **v2.0.4** su `https://www.iz2oii.eu/intervia/api.php`.
-**Lavoro in corso:** branch **`redesign-2.5`** (NON pubblicato, `main` intatto). Contiene la nuova grafica **a metà**: solo CSS e markup, il JavaScript non è ancora allineato, quindi l'app sul branch non va pubblicata così com'è.
+**Stato pubblicato (27/11/2026):** `main` = **v2.5.0** (nuova grafica completa), online su https://andreaglightburn.github.io/intervia/ · server `server/api.php` **v2.0.4** su `https://www.iz2oii.eu/intervia/api.php` (invariato). Il branch `redesign-2.5` è fuso in `main`.
 
 **Regole del progetto:** l'app resta un file unico `index.html` (PWA, nessun passaggio di build). Il server PHP sta in `server/` e si carica a mano su Aruba. Niente dati inventati, etichette oneste. A ogni rilascio si alzano insieme `APP_VERSION` (index.html), `VERSION` (sw.js) e `version.json`. Test: `cd tests && npm i && node unit.test.mjs && node smoke.test.mjs`. Push: `git -c push.negotiate=true push origin HEAD:main`. Autore nell'app: "Pony10". Il nome "Intervia" resta provvisorio ("sul nome torneremo").
 
-### 0.1 Redesign 2.5.0 — richiesta dell'utente
-"Prendi spunto da questa app [app treni di riferimento, 7 screenshot] per la grafica, non tanto i colori quanto la semplicità di lettura, spazi, carattere, etc. E per la tendina informazioni." Si tengono i nostri colori e il nostro marchio: non si copiano nome, logo o colori dell'app di riferimento.
+### 0.1 Redesign 2.5.0 — FATTO
+Grafica ispirata (non copiata) a un'app treni di riferimento: leggibilità, spazi, carattere, pagina Informazioni a elenco. Colori e marchio restano i nostri.
+- `showTab` aggiorna `#pageTitle` e `aria-current`.
+- `#onlyDirect`: forza maxTransfers=0, nasconde `#maxTrow`, salvato in `intervia.prefs.onlyDirect`; la scelta dei cambi resta salvata a parte.
+- Elenchi comuni `liRows/liSection/bindList/armTwice`: recenti percorso (`#recenthead`, `#recentClear` a doppio tocco), stazioni, treni, città e preferiti come righe `.li` con cestino `[data-del]`. Gli elenchi stanno **sotto** i risultati (`#stout`, `#tout`).
+- Tema: `localStorage['intervia.theme']` ("", light, dark), script in testa contro il lampo, `applyTheme()`, `#themeSeg`. "Cancella i dati" riporta il tema a Sistema.
+- Tabellone: `boardRow()` → `.brow` (orario atteso, destinazione, binario evidenziato se cambiato, "+N′"/"in orario"/"programmato" se senza tempo reale, "previsto HH:MM" → risolve **M5**), riga intera tocca → segui la corsa, preferito e aggiorna come icone. Scorrimento mantenuto negli aggiornamenti automatici (A2).
+- Treno: banner di stato (Soppresso / Non ancora partito / In viaggio / Arrivato + ritardo), scheda `.tsum`, linea del tempo `.tl` con Arr./Part., binari (`.tk.chg` se cambiato). `openTrip` aggiunge orari stimati futuri (`arrExp/depExp`, mostrati con "≈").
+- "Orari da" in Stazioni e Linee con le stesse pillole data/ora del Percorso; Server dati spostato in Informazioni (anche nei messaggi di errore).
+- Test: 25 unitari + 31 di interfaccia; nuovi test per pageTitle, onlyDirect, tema, recenti, tabellone, treno; A5 ora controlla anche `:root[data-theme=dark]` e i testi secondari.
 
-**Già fatto sul branch (index.html):**
-- Nuovo foglio di stile: font di sistema a 16px, schede con raggio 20px e spazi ampi, variabili colore chiaro/scuro, `:root[data-theme=dark|light]` per forzare il tema, `--okbg/--warnbg/--badbg`.
-- Icone SVG come `<symbol id="ic-…">` (search, board, train, lines, alert, info, swap, gps, map, pin, cal, clock, back, chev, ext, trash, theme, refresh, data, shield, server, user, code, route).
-- Barra in alto compatta: logo, `h1#pageTitle`, `#infobtn`. Barra in basso con icone e "pillola" sulla scheda attiva (`.tabs button .ind`).
-- Percorso: scheda unica Da/A (`.jcard`, `.jrow`, `#swap` rotondo sul separatore), `#arrby`, "pillole" data/ora + `#routeNow`, interruttore `#onlyDirect` (nuovo) accanto a `#maxT`, chip dei mezzi, pulsante grande `#go`, intestazione `#recenthead` (hidden) con `#recentClear` e lista `#recent.lst`.
-- Informazioni come pagina a elenco (`#infoModal`): Aspetto con `#themeSeg` (`data-th` ""/light/dark), versione e aggiornamenti (`#infoCheck #infoVer #infoDate #infoUpd`), autore (`#infoAuthor`), sezioni espandibili Dati e servizi, Privacy (`#infoClear #infoClearMsg`), Server dati (`#bridgeurl #bridgesave #bridgemsg`, **tolti da Avvisi**), codice sorgente, avvertenza in fondo. **Piè di pagina eliminato.**
-- Classi CSS già pronte ma non ancora usate dal JS: `.brd/.brow` (righe del tabellone: `.bt` ora, `.bd` destinazione, `.bp` binario (+`.real`), `.bdel` ritardo, `.bs` linea·operatore, `.bx` "previsto HH:MM", `.cx` soppresso), `.boardhead`, `.banner(.ok/.grey/.bad)`, `.tsum`, `.tl` (linea del tempo con `.tn .tk .tt`, `li.past/next/off`), `.li/.li-main/.li-ic/.li-tx` (righe delle recenti), `.irow/.ilist/.idet`.
-
-**Da fare (in quest'ordine):**
-1. `showTab`: aggiornare `#pageTitle` (Percorso/Stazioni/Treni/Linee/Avvisi) e `aria-current` sulle schede.
-2. `#onlyDirect` ↔ `#maxT`: se acceso, imposta maxT=0 e nasconde/disabilita `#maxTrow`; da salvare con le altre preferenze.
-3. `renderRecent` (~riga 727): righe `.li` con `button.li-main[data-i]` (icona + "Da → A"), pulsante cestino `[data-del]`, freccia; mostrare `#recenthead` se ci sono recenti; `#recentClear` cancella con doppio tocco (come M1). Fare lo stesso stile per `renderStRecent`, `renderTrRecent`, preferiti e `renderCityFavs`.
-4. Tema: leggere/scrivere `localStorage['intervia.theme']`, impostare `document.documentElement.dataset.theme` e `#themeSeg .on`, applicarlo prima del primo disegno (script in head) per evitare il lampo.
-5. `loadBoard`: righe `.brow` con orario previsto grande, ritardo "+N′" o "in orario", destinazione, "linea · operatore", binario reale o previsto, "previsto HH:MM" (risolve **M5** del report). Va mantenuto lo scorrimento in caso di aggiornamento automatico (A2).
-6. `renderTrain`: banner di stato (In viaggio / Non ancora partito / Soppresso / Arrivato), scheda riassuntiva `.tsum`, ultimo rilevamento, linea del tempo `.tl` con Arr./Part. e binari. Collegamenti (`.live`, preferito, `#trref`) invariati. Applicare la stessa vista a `openTrip`, se possibile.
-7. Controllare le altre schede (Stazioni, Treni, Linee, Avvisi) con il nuovo stile; avvisi con `.tag` a pillola.
-8. Test: aggiornare **A5** (regex sul blocco scuro: ora `:root[data-theme=dark]{…}` e la media query `:root:not([data-theme=light])`), **M1/A3** (le recenti ora usano `.li-main` e `#recentClear`), **A2** (le righe sono `#stout .brow`, non `.leg`); aggiungere test per tema, onlyDirect e pageTitle.
-9. Alzare a **2.5.0** (index.html, sw.js, version.json), lanciare i test, fondere `redesign-2.5` in `main`, push e controllo da telefono.
-
-Gli altri punti del rilascio 2.5.0 del report (M2 Leaflet in locale, M4 timeout di 3 s nel service worker, M8 errori comprensibili, M9 e C1–C5 accessibilità, B4 data sulle schede) si possono fare nello stesso rilascio.
+**Ancora da fare dal report (prossimo rilascio):** M2 Leaflet in locale, M4 timeout 3 s nel service worker, M8 errori comprensibili, M9 e C1–C5 accessibilità (focus trap nella pagina Informazioni), B4 data sulle schede. Controllo manuale da telefono della checklist §3.
 
 ### 0.2 Idea successiva: statistiche dei ritardi (proposta all'utente, non ancora approvata)
 L'utente ha chiesto se si possono raccogliere i ritardi in automatico sul server, senza che l'app sia aperta. Risposta: sì.
