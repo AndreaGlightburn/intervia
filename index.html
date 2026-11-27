@@ -126,7 +126,7 @@ input:focus-visible,select:focus-visible,button:focus-visible,.chip:focus-visibl
 .it .modes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:14px}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:8px;font-weight:700;font-size:14px;background:var(--pri2);color:var(--link)}
 .arrow{color:var(--mute)}
-.late{color:var(--warn);font-weight:700}
+.late{color:var(--bad);font-weight:700}
 .ontime{color:var(--ok)}
 .canc{color:var(--bad);font-weight:700}
 .det{display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
@@ -157,7 +157,7 @@ input:focus-visible,select:focus-visible,button:focus-visible,.chip:focus-visibl
 .brow .bdel{grid-row:2;font-size:15px;font-weight:700}
 .brow .bs{grid-row:2;font-size:15px;color:var(--mute);min-width:0}
 .brow .bs b{color:var(--ink);font-weight:600}
-.brow .bx{grid-row:2;justify-self:end;font-size:14px;color:var(--warn);font-weight:700;white-space:nowrap}
+.brow .bx{grid-row:2;justify-self:end;font-size:14px;color:var(--mute);font-weight:700;white-space:nowrap}
 .brow.cx .bt,.brow.cx .bd{text-decoration:line-through;opacity:.6}
 .boardhead{display:flex;align-items:center;gap:8px;margin:2px 0 12px}
 .boardhead h2{flex:1;margin:0;font-size:22px;min-width:0}
@@ -185,6 +185,8 @@ button.brow:active{background:var(--pri2)}
 .tl li.next::after{border-color:var(--pri)}
 .tl .tn{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .tl .tn b{font-size:18px}
+.stlink{border:0;background:none;padding:0;font:inherit;font-size:18px;font-weight:700;color:var(--ink);text-align:left;cursor:pointer;text-decoration:underline dotted var(--line2);text-underline-offset:4px}
+.stlink:hover,.stlink:active{color:var(--link)}
 .tl .tk{font-weight:700;font-size:14px;padding:3px 9px;border-radius:9px;background:var(--chip);white-space:nowrap}
 .tl .tk.chg{background:var(--warnbg);color:var(--warn)}
 .tl .tt{display:grid;grid-template-columns:46px auto auto;gap:2px 10px;margin-top:4px;font-size:16px;align-items:baseline;justify-content:start}
@@ -193,7 +195,7 @@ button.brow:active{background:var(--pri2)}
 .tl li.off{opacity:.55}
 
 /* ---- Avvisi ---- */
-.al .tag{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;padding:5px 12px;border-radius:999px;margin-bottom:8px}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;padding:5px 12px;border-radius:999px;margin-bottom:8px}
 .tag.red{background:var(--badbg);color:var(--bad)}.tag.green{background:var(--okbg);color:var(--ok)}.tag.orange{background:var(--warnbg);color:var(--warn)}.tag.blue{background:var(--pri2);color:var(--link)}.tag.grey{background:var(--chip);color:var(--mute)}
 .al h3{margin:4px 0 6px;font-size:19px}
 .al .meta{font-size:14px;color:var(--mute);margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 14px}
@@ -239,7 +241,18 @@ ol.stl li .act button{font-size:13px;border:1px solid var(--line);background:var
 .tabs button.on .ind{background:var(--pri2);color:var(--link)}
 
 /* ---- Pagina Informazioni ---- */
-#infoModal{position:fixed;inset:0;z-index:1100;background:var(--bg);display:none;flex-direction:column;overflow:auto}
+#infoModal,.page{position:fixed;inset:0;z-index:1100;background:var(--bg);display:none;flex-direction:column;overflow:auto}
+.page.on{display:flex}
+.rec .rh{display:flex;align-items:center;gap:12px}
+.rec .rh .li-ic{flex:0 0 auto}
+.rec h3{margin:0;font-size:18px;flex:1;min-width:0}
+.rec .meta{color:var(--mute);font-size:15px;margin-top:8px}
+.rec .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.rec .acts button{min-height:44px;border-radius:12px;border:1px solid var(--line2);background:var(--card);padding:0 14px;font-weight:600;cursor:pointer;color:var(--ink)}
+.rec .acts button.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.rec .acts button.del{color:var(--bad);margin-left:auto}
+.rec .kpi{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:15px}
+.rec .kpi b{font-size:17px}
 .ilist{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
 .irow{display:flex;align-items:center;gap:16px;padding:16px;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none;width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left;cursor:pointer;font-size:18px}
 .irow:last-child{border-bottom:0}
@@ -288,6 +301,7 @@ details.idet[open] .ich{transform:rotate(90deg)}
   <symbol id="ic-server" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="7" rx="2"/><rect x="4" y="13" width="16" height="7" rx="2"/><path d="M8 7.5h.01M8 16.5h.01"/></symbol>
   <symbol id="ic-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
   <symbol id="ic-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5"/></symbol>
+  <symbol id="ic-chart" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6M20 16v-9"/></symbol>
   <symbol id="ic-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
 </svg>
 <header class="appbar">
@@ -391,6 +405,7 @@ details.idet[open] .ich{transform:rotate(90deg)}
       </div>
       <div class="sub" style="font-size:12px;color:var(--mute);margin-top:6px">Il numero è sul biglietto o sul tabellone. Dati in tempo reale da ViaggiaTreno.</div>
     </form>
+    <div class="ilist"><button type="button" class="irow" id="recOpen"><svg class="i"><use href="#ic-chart"/></svg><div class="itx">Registrazioni ritardi<small id="recSummary">Raccogli i ritardi di una stazione o di un treno per un periodo</small></div><svg class="i ich"><use href="#ic-chev"/></svg></button></div>
     <div id="tout"></div>
     <div id="favtrains"></div>
     <div id="trrecent"></div>
@@ -462,10 +477,55 @@ details.idet[open] .ich{transform:rotate(90deg)}
       <details class="idet"><summary class="irow"><svg class="i"><use href="#ic-server"/></svg><div class="itx">Server dati<small>Per Treni e Avvisi (file api.php)</small></div><svg class="i ich"><use href="#ic-chev"/></svg></summary>
         <div class="ibody"><label for="bridgeurl">Indirizzo del file api.php</label><input type="text" id="bridgeurl">
           <div class="mt"><button type="button" class="go sm" id="bridgesave">Salva e prova</button></div>
-          <div id="bridgemsg" class="mt" role="status"></div></div></details>
+          <div id="bridgemsg" class="mt" role="status"></div>
+          <div class="mt">La chiave per le registrazioni dei ritardi si inserisce in Treni → Registrazioni ritardi.</div></div></details>
       <a class="irow" href="https://github.com/AndreaGlightburn/intervia" target="_blank" rel="noopener"><svg class="i"><use href="#ic-code"/></svg><div class="itx">Codice sorgente<small>GitHub</small></div><svg class="i ich"><use href="#ic-ext"/></svg></a>
     </div>
     <div class="ifoot">App indipendente, non affiliata ad alcuna azienda di trasporto. Orari, ritardi e avvisi provengono dagli operatori e da servizi aperti: non ne garantiamo l'esattezza. Biglietti e orari definitivi sono quelli del sito dell'operatore; le coincidenze indicate non sono garantite.</div>
+  </div>
+</div>
+<div id="recModal" class="page" role="dialog" aria-modal="true" aria-labelledby="recTitle">
+  <header class="appbar" style="position:sticky">
+    <button type="button" class="iconbtn" id="recClose" aria-label="Indietro"><svg class="i"><use href="#ic-back"/></svg></button>
+    <h1 id="recTitle" style="font-size:24px">Registrazioni ritardi</h1>
+    <button type="button" class="iconbtn" id="recReload" aria-label="Aggiorna l'elenco" title="Aggiorna"><svg class="i"><use href="#ic-refresh"/></svg></button>
+  </header>
+  <div style="padding:4px 16px 24px;max-width:720px;margin:0 auto;width:100%">
+    <div class="card" id="recKeyCard" hidden>
+      <b>Chiave delle registrazioni</b>
+      <div class="sub" style="font-size:15px;margin:4px 0 10px">La raccolta gira sul tuo server (api.php) e la può comandare solo chi ha la chiave scritta nel file config.php. Si inserisce una volta sola su questo telefono.</div>
+      <label for="recKey">Chiave</label><input type="text" id="recKey" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="mt"><button type="button" class="go sm" id="recKeySave">Salva e prova</button></div>
+      <div id="recKeyMsg" class="mt" role="status"></div>
+    </div>
+    <div id="recBody">
+      <form class="card" id="recForm" autocomplete="off">
+        <b style="font-size:18px">Nuova registrazione</b>
+        <div class="seg mt" id="recKind"><button type="button" class="on" data-v="station">Stazione</button><button type="button" data-v="train">Treno</button></div>
+        <div id="recStBox" class="mt place" style="position:relative">
+          <label for="recSt">Stazione (elenco ViaggiaTreno)</label>
+          <input type="text" id="recSt" placeholder="es. Abbiategrasso">
+          <div class="sugg"></div>
+          <div class="seg mt" id="recDirs"><button type="button" class="on" data-v="dep,arr">Partenze e arrivi</button><button type="button" data-v="dep">Partenze</button><button type="button" data-v="arr">Arrivi</button></div>
+        </div>
+        <div id="recTrBox" class="mt" hidden>
+          <label for="recTr">Numero del treno</label>
+          <input type="text" id="recTr" inputmode="numeric" placeholder="es. 10062">
+          <div class="sub" id="recTrInfo" style="font-size:14px;margin-top:6px">Consiglio: apri il treno nella scheda Treni e tocca "Registra i ritardi", così l'origine è già giusta.</div>
+        </div>
+        <label class="mt">Periodo</label>
+        <div class="pills">
+          <label class="pill grow"><span class="sub" style="font-weight:500">Dal</span><input type="date" id="recFrom" aria-label="Dal giorno"></label>
+          <label class="pill grow"><span class="sub" style="font-weight:500">Al</span><input type="date" id="recTo" aria-label="Al giorno"></label>
+        </div>
+        <div class="chips mt" id="recQuick"><span class="chip" data-d="7" role="button" tabindex="0">1 settimana</span><span class="chip on" data-d="30" role="button" tabindex="0">1 mese</span><span class="chip" data-d="90" role="button" tabindex="0">3 mesi</span></div>
+        <button class="go mt" type="submit" id="recGo"><svg class="i"><use href="#ic-chart"/></svg>Avvia la registrazione</button>
+        <div id="recFormMsg" class="mt" role="status"></div>
+      </form>
+      <div id="recList"></div>
+      <div class="sub" style="font-size:14px;margin:6px 4px"><span id="recWho"></span><a href="#" id="recKeyChange">Cambia chiave</a></div>
+      <div class="sub" style="font-size:14px;margin:6px 4px">Dati da ViaggiaTreno (servizio non ufficiale), raccolti dal server ogni 10–15 minuti. Il ritardo definitivo è quello reale registrato al passaggio; se manca resta l'ultimo letto sul tabellone (indicato nei dati). Puntuale = entro 5 minuti. La registrazione parte dal giorno indicato: niente dati del passato.</div>
+    </div>
   </div>
 </div>
 <div id="mapModal">
@@ -480,7 +540,7 @@ details.idet[open] .ich{transform:rotate(90deg)}
 
 <script>
 'use strict';
-const APP_VERSION = '2.5.0', APP_DATE = '2026-11-27', APP_AUTHOR = 'Pony10';
+const APP_VERSION = '2.6.0', APP_DATE = '2026-11-27', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -1468,6 +1528,7 @@ function showTab(t, fromClick){
   $('#tabs').querySelectorAll('button').forEach(x => { const on = x.dataset.t === t; x.classList.toggle('on', on); if (on) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current'); });
   $('#pageTitle').textContent = TAB_TITLE[t] || 'Intervia';
   if (t === 'alerts' && !alertsLoaded) loadAlerts();
+  if (t === 'train') recSummaryRefresh();
   window.scrollTo(0, 0);
 }
 $('#tabs').addEventListener('click', e => {
@@ -1947,34 +2008,76 @@ function renderStRecent(){
     onDel: i => { const a = store('intervia.stations') || []; a.splice(i, 1); store('intervia.stations', a); renderStRecent(); },
     onClear: () => { store('intervia.stations', []); renderStRecent(); }});
 }
+// Dalla vista treno: apre il tabellone della stazione toccata (nomi ViaggiaTreno in maiuscolo → fermata Transitous)
+async function openStationByName(name, vtId, stopId){
+  const nice = titleCase(name);
+  showTab('station');
+  if (stopId) return openStation({id: stopId, name: nice, vt: vtId});
+  $('#st').value = nice; $('#stout').innerHTML = '<div class="msg" role="status">Cerco la stazione…</div>';
+  const nrm = x => norm(x).replace(/\b(fs|stazione|centrale fs)\b/g, '').replace(/\s+/g, ' ').trim();
+  try{
+    const r = await fetchT(`${API}/api/v1/geocode?text=${encodeURIComponent(nice)}&language=it&type=STOP`, {}, 10000);
+    const items = ((await r.json()) || []).filter(m => m.type === 'STOP' && m.id);
+    const it = items.find(m => nrm(m.name) === nrm(name)) || items.find(m => nrm(m.name).startsWith(nrm(name))) || items[0];
+    if (!it) throw 0;
+    openStation({id: it.id, name: it.name, sub: '', vt: vtId});
+  }catch(e){ $('#stout').innerHTML = `<div class="msg err">Non trovo la stazione "${esc(nice)}" negli orari. Prova a cercarla qui sopra.</div>`; }
+}
 function openStation(x){
   stSel = x; $('#st').value = x.name;
   let r = (store('intervia.stations') || []).filter(y => y.id !== x.id); r.unshift(x); store('intervia.stations', r.slice(0, 8)); renderStRecent();
   loadBoard();
 }
-// Una riga del tabellone: orario atteso grande, destinazione, binario; sotto ritardo, linea · operatore, orario previsto
-function boardRow(x){
+// Riga del tabellone in forma comune (Transitous o ViaggiaTreno)
+function stRow(x){
   const p = x.place || {}, t = stArr ? (p.arrival || p.departure) : (p.departure || p.arrival);
   const sch = stArr ? (p.scheduledArrival || p.scheduledDeparture) : (p.scheduledDeparture || p.scheduledArrival);
-  const d = delayMin(t, sch), g = modeGroup(x.mode, planVer || 'v5'), cx = !!(x.cancelled || p.cancelled);
-  const n = g === 'treno' ? trainNumber(x) : null;
-  const line = x.displayName || x.routeShortName || NAME[g];
-  const trackChanged = p.track && p.scheduledTrack && p.scheduledTrack !== p.track;
-  const del = cx ? '<span class="bdel canc">Soppresso</span>'
-    : !x.realTime ? '<span class="bdel" style="color:var(--mute);font-weight:500" title="senza dati in tempo reale">programmato</span>'
+  const g = modeGroup(x.mode, planVer || 'v5'), line = x.displayName || x.routeShortName || NAME[g];
+  return {g, line, num: g === 'treno' ? trainNumber(x) : null, head: x.headsign || '', agency: x.agencyName || '', sched: Date.parse(sch || t), exp: Date.parse(t || sch),
+    delay: x.realTime ? delayMin(t, sch) : null, cx: !!(x.cancelled || p.cancelled), track: p.track, trackSched: p.scheduledTrack, tripId: x.tripId};
+}
+const titleCase = s => String(s || '').toLowerCase().replace(/(^|[\s\u0027\x28\-.\/])(\p{L})/gu, (m, a, c) => a + c.toUpperCase());
+// Unisce i ritardi di ViaggiaTreno (per numero di treno) e aggiunge i treni che mancano nei dati degli orari
+// from = ora del tabellone (adesso o quella scelta): i treni già partiti prima non si aggiungono
+function mergeVt(rows, vt, from = 0){
+  if (!vt || !vt.length) return rows;
+  const byN = new Map(vt.map(v => [String(v.n), v])), used = new Set();
+  rows = rows.map(r => {
+    const v = r.num && byN.get(String(r.num)); if (!v) return r;
+    used.add(String(v.n));
+    const delay = v.delay != null ? v.delay : r.delay;
+    return {...r, delay, exp: delay != null ? r.sched + delay * 60000 : r.exp, cx: r.cx || v.cancelled, track: v.track || v.trackSched || r.track,
+      trackSched: v.trackSched || r.trackSched, vt: true, notStarted: v.delay == null && !v.cancelled, o: v.o, d: v.d};
+  });
+  for (const v of vt){
+    if (used.has(String(v.n)) || !v.sched || v.sched + Math.max(0, v.delay || 0) * 60000 < from - 2 * 60000) continue;
+    rows.push({g:'treno', line: (v.cat || 'Treno').trim(), num: String(v.n), head: titleCase(stArr ? v.origin : v.dest), agency: v.client || '', sched: v.sched,
+      exp: v.delay != null ? v.sched + v.delay * 60000 : v.sched, delay: v.delay, cx: v.cancelled, track: v.track || v.trackSched, trackSched: v.trackSched,
+      vt: true, vtOnly: true, notStarted: v.delay == null && !v.cancelled, o: v.o, d: v.d});
+  }
+  return rows.sort((a, b) => a.sched - b.sched);
+}
+// Una riga: orario atteso grande, destinazione, binario; sotto ritardo, linea · operatore, orario previsto
+function boardRow(r){
+  const iso = ms => new Date(ms).toISOString(), d = r.delay;
+  const trackChanged = r.track && r.trackSched && r.trackSched !== r.track;
+  const del = r.cx ? '<span class="bdel canc">Soppresso</span>'
+    : d == null ? `<span class="bdel" style="color:var(--mute);font-weight:500" title="senza dati in tempo reale">${r.notStarted ? 'non ancora partito' : 'programmato'}</span>`
     : d > 0 ? `<span class="bdel late">+${d}′</span>` : d < 0 ? `<span class="bdel ontime">${d}′</span>` : '<span class="bdel ontime">in orario</span>';
-  const tag = x.tripId ? 'button' : 'div';
-  const trip = x.tripId ? ` type="button" data-trip="${esc(x.tripId)}" data-tripname="${esc(line + (n && !line.includes(n) ? ' ' + n : ''))}"` : '';
-  return `<${tag} class="brow${cx ? ' cx' : ''}"${trip}>
-    <span class="bt">${fmtT(t)}</span>
-    <span class="bd">${stArr ? '<span class="sub" style="font-weight:500;font-size:15px">da </span>' : ''}${esc(x.headsign || '–')}</span>
-    ${p.track ? `<span class="bp${trackChanged ? ' real' : ''}" title="${trackChanged ? 'Binario cambiato: era ' + esc(p.scheduledTrack) : 'Binario'}">Bin. ${esc(p.track)}</span>` : '<span></span>'}
+  const nm = r.num && !r.line.includes(r.num) ? ' ' + r.num : '';
+  const open = r.tripId ? ` type="button" data-trip="${esc(r.tripId)}" data-tripname="${esc(r.line + nm)}"`
+    : r.vtOnly && r.num ? ` type="button" data-train="${esc(r.num)}"${r.o ? ` data-o="${esc(r.o)}" data-d="${esc(r.d)}"` : ''}` : '';
+  const tag = open ? 'button' : 'div';
+  return `<${tag} class="brow${r.cx ? ' cx' : ''}"${open}>
+    <span class="bt${d > 0 && !r.cx ? ' late' : ''}">${fmtT(iso(r.exp))}</span>
+    <span class="bd">${stArr ? '<span class="sub" style="font-weight:500;font-size:15px">da </span>' : ''}${esc(r.head || '–')}</span>
+    ${r.track ? `<span class="bp${trackChanged ? ' real' : ''}" title="${trackChanged ? 'Binario cambiato: era ' + esc(r.trackSched) : 'Binario'}">Bin. ${esc(r.track)}</span>` : '<span></span>'}
     ${del}
-    <span class="bs">${ICON[g] || '🚏'} <b>${esc(line)}</b>${n && !line.includes(n) ? ' ' + esc(n) : ''}${x.agencyName ? ' · ' + esc(x.agencyName) : ''}</span>
-    ${d > 0 && !cx ? `<span class="bx">previsto ${fmtT(sch)}</span>` : '<span></span>'}
+    <span class="bs">${ICON[r.g] || '🚏'} <b>${esc(r.line)}</b>${esc(nm)}${r.agency ? ' · ' + esc(r.agency) : ''}</span>
+    ${d > 0 && !r.cx ? `<span class="bx">previsto ${fmtT(iso(r.sched))}</span>` : '<span></span>'}
   </${tag}>`;
 }
-let boardSeq = 0;
+let boardSeq = 0, boardState = null;
 async function loadBoard(auto = false){
   clearInterval(stTimer);
   const seq = ++boardSeq;
@@ -1989,21 +2092,43 @@ async function loadBoard(auto = false){
     if (seq !== boardSeq) return;
     if (r && r.ok){ data = await r.json(); break; }
   }
-  if (!data){ if (!auto) out.innerHTML = '<div class="msg err">Tabellone non disponibile.</div>'; else stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(true); }, 60000); return; }
-  const list = data.stopTimes || [];
+  const rows = data ? (data.stopTimes || []).map(stRow) : [];
+  const prevVt = boardState && boardState.id === stSel.id && boardState.arr === stArr ? boardState.vt : null;
+  boardState = {id: stSel.id, arr: stArr, rows, vt: prevVt, vtStation: boardState?.vtStation, vtErr: null};
+  // stazione ferroviaria (treni negli orari, o codice ViaggiaTreno già noto): ritardi e binari da ViaggiaTreno
+  const wantVt = stSel.vt || rows.some(r => r.g === 'treno');
+  if (!data && !wantVt){ if (!auto) out.innerHTML = '<div class="msg err">Tabellone non disponibile.</div>'; else armBoardTimer(); return; }
+  paintBoard(auto ? keepY : null);
+  if (wantVt){
+    try{
+      const j = await bridgeGet({a:'board', kind: stArr ? 'arr' : 'dep', ...(stSel.vt ? {st: stSel.vt} : {name: stSel.name}), ...(refState.station ? {t: Date.parse(refState.station)} : {})}, 15000);
+      if (seq !== boardSeq) return;
+      boardState.vt = j.trains || []; boardState.vtStation = j.station;
+    }catch(e){ if (seq !== boardSeq) return; boardState.vtErr = e.message; }
+    paintBoard(window.scrollY);
+  }
+  armBoardTimer();
+}
+function armBoardTimer(){ clearInterval(stTimer); if (!refState.station) stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(true); }, 60000); }
+function paintBoard(keepY){
+  const out = $('#stout'), bs = boardState;
+  const list = mergeVt(bs.rows, bs.vt, refState.station ? Date.parse(refState.station) : Date.now());
   const now = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit', timeZone:TZ});
   const fk = 'station:' + stSel.id, fav = isFav(fk);
+  const vtNote = bs.vt && bs.vtStation ? ` · ritardi e binari dei treni: ViaggiaTreno${list.some(r => r.vtOnly) ? ' (anche i treni che mancano negli orari)' : ''}`
+    : bs.vtErr ? ' · ritardi dei treni non disponibili ora' : '';
   out.innerHTML = `<div class="boardhead"><h2>${esc(stSel.name)}</h2>
+      ${bs.vtStation ? `<button type="button" class="iconbtn" id="strec" aria-label="Registra i ritardi di questa stazione" title="Registra i ritardi"><svg class="i"><use href="#ic-chart"/></svg></button>` : ''}
       <button type="button" class="iconbtn favbtn${fav ? ' fav' : ''}" data-fav="${esc(fk)}" data-favtype="station" data-favlabel="${esc(stSel.name)}" data-favdata="${esc(JSON.stringify(stSel))}" aria-pressed="${fav}" aria-label="Stazione preferita" title="Stazione preferita">${fav ? '★' : '☆'}</button>
       <button type="button" class="iconbtn" id="strefresh" aria-label="Aggiorna il tabellone" title="Aggiorna"><svg class="i"><use href="#ic-refresh"/></svg></button></div>
-    <div class="boardsub">${stArr ? 'Arrivi' : 'Partenze'} ${refState.station ? 'dalle ' + esc(refLabel('station')) : 'da adesso'} · aggiornato alle ${now}${refState.station ? '' : ' · si aggiorna da solo'}</div>` +
-    (list.length ? `<div class="brd">${list.map(x => boardRow(x)).join('')}</div>
-      <div class="sub" style="font-size:14px;margin-top:10px">Tocca una riga per seguire la corsa. Binario evidenziato = cambiato rispetto al previsto.</div>` : '<div class="msg">Nessun passaggio nelle prossime ore.</div>');
+    <div class="boardsub">${stArr ? 'Arrivi' : 'Partenze'} ${refState.station ? 'dalle ' + esc(refLabel('station')) : 'da adesso'} · aggiornato alle ${now}${refState.station ? '' : ' · si aggiorna da solo'}${vtNote}</div>` +
+    (list.length ? `<div class="brd">${list.map(boardRow).join('')}</div>
+      <div class="sub" style="font-size:14px;margin-top:10px">Tocca una riga per seguire la corsa. Orario in rosso = ritardo; binario evidenziato = cambiato rispetto al previsto.</div>` : '<div class="msg">Nessun passaggio nelle prossime ore.</div>');
   $('#strefresh').onclick = e => { e.preventDefault(); loadBoard(); };
+  $('#strec')?.addEventListener('click', () => openRec({kind:'station', code: bs.vtStation.id, label: bs.vtStation.name}));
   bindFavButtons(out);
-  if (auto) window.scrollTo(0, keepY);
+  if (keepY != null) window.scrollTo(0, keepY);
   else out.scrollIntoView({behavior: 'smooth', block: 'start'});
-  if (!refState.station) stTimer = setInterval(() => { if (!$('#tab-station').hidden && !document.hidden) loadBoard(true); }, 60000);
 }
 
 /* ---------- Ponte dati (api.php su hosting PHP) ---------- */
@@ -2075,19 +2200,24 @@ function renderTrain(t, tripCtx){
   const delTxt = del > 0 ? `ritardo ${del} min` : del < 0 ? `anticipo ${-del} min` : 'in orario';
   const [bc, btx] = t.cancelled ? ['bad', 'Soppresso']
     : lastIdx < 0 ? ['grey', 'Non ancora partito']
-    : [del > 0 ? '' : 'ok', (arrived ? 'Arrivato · ' : 'In viaggio · ') + delTxt];
+    : [del > 0 ? 'bad' : 'ok', (arrived ? 'Arrivato · ' : 'In viaggio · ') + delTxt];
   const fk = 'train:' + t.number, fav = t.number && isFav(fk);
   const hhmm = v => v ? msT(v) : '';
   const rows = st.map((s, i) => {
     const cls = s.cancelled ? 'off' : i <= lastIdx ? 'past' : (i === lastIdx + 1 ? 'next' : '');
     const chg = s.track && s.trackSched && s.trackSched !== s.track;
-    const cell = (lab, sched, real, exp, d) => !sched && !real && !exp ? '' :
-      `<span>${lab}</span><span${real || exp ? ' style="color:var(--mute)"' : ''}>${hhmm(sched)}</span>` +
-      (real ? `<b class="${d > 0 ? 'late' : 'ontime'}">${hhmm(real)}${d > 0 ? ` +${d}′` : ''}</b>`
-        : exp ? `<span class="late" title="orario stimato dal tempo reale">≈ ${hhmm(exp)}</span>` : '<span></span>');
+    // il ritardo mostrato è la differenza fra gli orari mostrati (ore:minuti), così "+1′" non compare accanto allo stesso orario
+    const shown = (a, b) => Math.floor(+a / 60000) - Math.floor(+b / 60000);
+    const cell = (lab, sched, real, exp) => {
+      if (!sched && !real && !exp) return '';
+      const d = real && sched ? shown(real, sched) : 0;
+      return `<span>${lab}</span><span${real || exp ? ' style="color:var(--mute)"' : ''}>${hhmm(sched)}</span>` +
+        (real ? `<b class="${d > 0 ? 'late' : 'ontime'}">${hhmm(real)}${d > 0 ? ` +${d}′` : ''}</b>`
+          : exp ? `<span class="late" title="orario stimato dal tempo reale">≈ ${hhmm(exp)}</span>` : '<span></span>');
+    };
     const first = i === 0, lastS = i === st.length - 1;
-    return `<li class="${cls}"><div class="tn"><b>${esc(s.name)}</b>${s.track ? `<span class="tk${chg ? ' chg' : ''}"${chg ? ` title="Binario cambiato: era ${esc(s.trackSched)}"` : ''}>Bin. ${esc(s.track)}</span>` : ''}</div>
-      <div class="tt">${first ? '' : cell('Arr.', s.arrSched, s.arrReal, s.arrExp, s.delayArr)}${lastS ? '' : cell('Part.', s.depSched, s.depReal, s.depExp, s.delayDep)}</div>
+    return `<li class="${cls}"><div class="tn"><button type="button" class="stlink" data-stname="${esc(s.name)}"${s.id ? ` data-vt="${esc(s.id)}"` : ''}${s.stopId ? ` data-stop="${esc(s.stopId)}"` : ''} title="Apri il tabellone di questa stazione">${esc(s.name)}</button>${s.track ? `<span class="tk${chg ? ' chg' : ''}"${chg ? ` title="Binario cambiato: era ${esc(s.trackSched)}"` : ''}>Bin. ${esc(s.track)}</span>` : ''}</div>
+      <div class="tt">${first ? '' : cell('Arr.', s.arrSched, s.arrReal, s.arrExp)}${lastS ? '' : cell('Part.', s.depSched, s.depReal, s.depExp)}</div>
       ${s.cancelled ? '<div class="canc" style="font-size:14px">fermata soppressa</div>' : ''}</li>`;
   }).join('');
   $('#tout').innerHTML = `<div class="banner ${bc}" role="status"><svg class="i"><use href="#ic-train"/></svg>${btx}</div>
@@ -2100,10 +2230,12 @@ function renderTrain(t, tripCtx){
       ${t.lastStation && t.lastStation !== '--' ? `<span>📍 Ultimo rilevamento: <b style="color:var(--ink)">${esc(t.lastStation)}</b>${t.lastTime ? ' alle ' + msT(t.lastTime) : ''}</span>` : ''}
       ${t.notes ? `<span>${esc(t.notes)}</span>` : ''}
     </div>
-    <div class="live" style="margin-top:12px"><a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/${t.number ? '?train=' + esc(t.number) : ''}" target="_blank" rel="noopener">📡 Pagina Trenord</a><a href="https://www.viaggiatreno.it/infomobilita/index.jsp" target="_blank" rel="noopener">📡 ViaggiaTreno</a></div>
+    <div class="live" style="margin-top:12px">${!tripCtx && t.number ? `<a href="#" id="trrec">📊 Registra i ritardi</a>` : ''}<a href="https://www.trenord.it/linee-e-orari/circolazione/tempo-reale/${t.number ? '?train=' + esc(t.number) : ''}" target="_blank" rel="noopener">📡 Pagina Trenord</a><a href="https://www.viaggiatreno.it/infomobilita/index.jsp" target="_blank" rel="noopener">📡 ViaggiaTreno</a></div>
   </div>
   <div class="card"><ol class="tl">${rows}</ol>
-    <div class="sub" style="font-size:14px;margin-top:6px">Si aggiorna da solo ogni minuto. Orario in grigio = previsto; in colore = reale${st.some(s => s.arrExp || s.depExp) ? '; ≈ = stimato dal tempo reale' : ''}. Se la pagina Trenord si apre bianca, torna indietro e riaprila.</div></div>`;
+    <div class="sub" style="font-size:14px;margin-top:6px">Tocca una stazione per aprirne il tabellone. Si aggiorna da solo ogni minuto. Orario in grigio = previsto; in colore = reale (rosso se in ritardo)${st.some(s => s.arrExp || s.depExp) ? '; ≈ = stimato dal tempo reale' : ''}. Se la pagina Trenord si apre bianca, torna indietro e riaprila.</div></div>`;
+  $('#trrec')?.addEventListener('click', e => { e.preventDefault(); openRec({kind:'train', code: t.number, origin: t.o, label: t.name + ' · ' + titleCase(t.origin) + ' → ' + titleCase(t.destination)}); });
+  $('#tout').querySelectorAll('.stlink').forEach(b => b.onclick = () => openStationByName(b.dataset.stname, b.dataset.vt, b.dataset.stop));
   $('#trref').onclick = e => { e.preventDefault(); if (tripCtx) openTrip(tripCtx.tripId, tripCtx.name); else openTrain(trCur.n, trCur.o, trCur.d); };
   bindFavButtons($('#tout'));
 }
@@ -2120,7 +2252,7 @@ async function openTrip(tripId, name){
   const all = [l.from, ...(l.intermediateStops || []), l.to];
   const stops = all.map((s, i) => {
     const arr = P(s.arrival), dep = P(s.departure);
-    return {name: s.name, type: i === 0 ? 'P' : i === all.length - 1 ? 'A' : 'F',
+    return {name: s.name, stopId: s.stopId, type: i === 0 ? 'P' : i === all.length - 1 ? 'A' : 'F',
       arrSched: P(s.scheduledArrival), depSched: P(s.scheduledDeparture),
       arrReal: arr && arr < now && i > 0 ? arr : null, depReal: dep && dep < now && i < all.length - 1 ? dep : null,
       arrExp: l.realTime && arr && arr >= now && i > 0 && arr !== P(s.scheduledArrival) ? arr : null,
@@ -2181,7 +2313,7 @@ function renderFavs(){
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-train]'); if (!a) return;
   e.preventDefault(); e.stopPropagation();
-  showTab('train'); $('#trainq').value = a.dataset.train; openTrain(a.dataset.train);
+  showTab('train'); $('#trainq').value = a.dataset.train; openTrain(a.dataset.train, a.dataset.o, a.dataset.d);
 }, true);
 
 /* ---------- Avvisi: infomobilità e scioperi ---------- */
@@ -2532,6 +2664,376 @@ if ('serviceWorker' in navigator && location.protocol === 'https:'){
 if (location.protocol === 'https:'){
   checkUpdate(false);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(false); });   // anche quando si torna nell'app
+}
+
+/* ---------- Registrazione dei ritardi (server: api.php + config.php + cron-job.org) ---------- */
+const recKey = () => store('intervia.reckey') || '';
+// Le registrazioni si comandano in POST: la chiave non finisce negli indirizzi né nella cronologia
+async function bridgePost(params, ms = 30000){
+  let r;
+  try{ r = await fetchT(bridge() + '?a=' + encodeURIComponent(params.a), {method: 'POST', body: new URLSearchParams({...params, k: recKey()})}, ms); }
+  catch(e){
+    if (e.kind === 'timeout') throw new NetError('timeout', 'Il server dati non ha risposto in tempo. Riprova tra poco.');
+    throw new NetError('network', 'Server dati non raggiungibile: controlla la rete.');
+  }
+  let j; try{ j = await r.json(); }catch(e){ throw new Error('Il server dati non ha risposto correttamente (' + r.status + '): hai caricato la nuova versione di api.php?'); }
+  if (!j.ok){ const err = new Error(j.error || 'Errore dal server dati'); err.status = r.status; throw err; }
+  return j;
+}
+let recKindV = 'station', recStSel = null, recTrSel = null, recDirsV = 'dep,arr', recCache = null;
+const REC_STATUS = {attesa: ['grey', 'In attesa'], 'in corso': ['blue', 'In corso'], completata: ['green', 'Completata']};
+const dmy = d => d ? d.split('-').reverse().join('/') : '';
+const addDays = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+function setRecKind(k){
+  recKindV = k;
+  $('#recKind').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === k));
+  $('#recStBox').hidden = k !== 'station'; $('#recTrBox').hidden = k !== 'train';
+}
+function openRec(pre){
+  $('#recModal').classList.add('on'); $('#recClose').focus();
+  const today = romeDay(new Date());
+  if (!$('#recFrom').value) $('#recFrom').value = today;
+  if (!$('#recTo').value) $('#recTo').value = addDays(today, 29);
+  if (pre){
+    setRecKind(pre.kind);
+    if (pre.kind === 'station'){ recStSel = {id: pre.code, name: pre.label}; $('#recSt').value = titleCase(pre.label); }
+    else { recTrSel = {code: pre.code, origin: pre.origin || '', label: pre.label}; $('#recTr').value = pre.code; $('#recTrInfo').textContent = pre.label + (pre.origin ? ' (origine ' + pre.origin + ')' : ''); }
+    $('#recFormMsg').textContent = 'Controlla il periodo e tocca "Avvia la registrazione".';
+  }
+  loadRecList();
+}
+function closeRec(){ $('#recModal').classList.remove('on'); $('#recOpen').focus(); }
+$('#recOpen').onclick = () => openRec();
+$('#recClose').onclick = closeRec;
+$('#recReload').onclick = () => loadRecList();
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#recModal').classList.contains('on')) closeRec(); });
+$('#recKind').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setRecKind(b.dataset.v); });
+$('#recDirs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  recDirsV = b.dataset.v; $('#recDirs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+});
+$('#recQuick').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  $('#recQuick').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+  const from = $('#recFrom').value || romeDay(new Date()); $('#recFrom').value = from;
+  $('#recTo').value = addDays(from, +c.dataset.d - 1);
+});
+$('#recTr').addEventListener('input', () => { recTrSel = null; $('#recTrInfo').textContent = 'Se più treni hanno questo numero, aprilo dalla scheda Treni e tocca "Registra i ritardi".'; });
+(function setupRecStation(){
+  const inp = $('#recSt'), list = inp.parentElement.querySelector('.sugg');
+  let timer, items = [];
+  inp.addEventListener('input', () => {
+    recStSel = null; clearTimeout(timer);
+    const q = inp.value.trim(); if (q.length < 2){ list.style.display = 'none'; return; }
+    timer = setTimeout(async () => {
+      try{
+        items = (await bridgeGet({a: 'stsearch', q}, 12000)).stations || [];
+        list.innerHTML = items.length ? items.map((m, i) => `<div data-i="${i}">🚉 ${esc(titleCase(m.name))}<small>${esc(m.id)}</small></div>`).join('') : '<div>Nessuna stazione ferroviaria con questo nome</div>';
+      }catch(e){ list.innerHTML = `<div>${esc(e.message)}</div>`; }
+      list.style.display = 'block';
+    }, 300);
+  });
+  list.addEventListener('mousedown', e => {
+    const d = e.target.closest('[data-i]'); if (!d) return; e.preventDefault();
+    recStSel = items[+d.dataset.i]; inp.value = titleCase(recStSel.name); list.style.display = 'none';
+  });
+  inp.addEventListener('blur', () => setTimeout(() => list.style.display = 'none', 150));
+})();
+$('#recForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('#recFormMsg'), from = $('#recFrom').value, to = $('#recTo').value;
+  const p = {a: 'rec_add', kind: recKindV, start: from, end: to};
+  if (recKindV === 'station'){
+    if (!recStSel) return msg.innerHTML = '<span class="canc">Scegli la stazione dall\'elenco dei suggerimenti.</span>';
+    Object.assign(p, {code: recStSel.id, label: titleCase(recStSel.name), dirs: recDirsV});
+  } else {
+    const n = $('#recTr').value.replace(/\D/g, '');
+    if (!n) return msg.innerHTML = '<span class="canc">Scrivi il numero del treno.</span>';
+    Object.assign(p, {code: n, origin: recTrSel && recTrSel.code === n ? recTrSel.origin : '', label: recTrSel && recTrSel.code === n ? recTrSel.label : 'Treno ' + n});
+  }
+  if (!from || !to || to < from) return msg.innerHTML = '<span class="canc">Controlla le date: il giorno finale deve venire dopo quello iniziale.</span>';
+  $('#recGo').disabled = true; msg.textContent = 'Avvio…';
+  try{
+    await bridgePost(p);
+    msg.innerHTML = `✅ Registrazione avviata${from > romeDay(new Date()) ? ' (inizierà il ' + dmy(from) + ')' : ''}. I primi dati arrivano alla prossima raccolta del server.`;
+    recStSel = null; recTrSel = null; $('#recSt').value = ''; $('#recTr').value = '';
+    loadRecList();
+  }catch(err){ msg.innerHTML = `<span class="canc">${esc(err.message)}</span>`; }
+  finally{ $('#recGo').disabled = false; }
+});
+$('#recKeyChange').onclick = e => { e.preventDefault(); $('#recKeyCard').hidden = false; $('#recKey').focus(); };
+$('#recKeySave').onclick = async () => {
+  store('intervia.reckey', $('#recKey').value.trim());
+  $('#recKeyMsg').textContent = 'Provo…';
+  await loadRecList();
+};
+async function loadRecList(){
+  const box = $('#recList');
+  $('#recKey').value = recKey();
+  if (!recKey()){ $('#recKeyCard').hidden = false; $('#recBody').hidden = true; return; }
+  box.innerHTML = '<div class="msg" role="status">Carico le registrazioni…</div>';
+  try{
+    const j = await bridgePost({a: 'rec_list'});
+    $('#recKeyCard').hidden = true; $('#recBody').hidden = false; $('#recKeyMsg').textContent = '';
+    recCache = {t: Date.now(), recs: j.recs, me: j.me}; recSummary();
+    const reader = j.me && j.me.role === 'lettore';
+    $('#recForm').hidden = reader;
+    $('#recWho').textContent = j.me ? `Accesso come ${j.me.name} (${reader ? 'sola lettura: puoi scaricare report e dati' : 'gestore: puoi creare ed eliminare registrazioni'}) · ` : '';
+    renderRecList(j.recs, reader);
+  }catch(err){
+    if (err.status === 403){ $('#recKeyCard').hidden = false; $('#recBody').hidden = true; $('#recKeyMsg').innerHTML = `<span class="canc">${esc(err.message)}</span>`; return; }
+    $('#recKeyCard').hidden = err.status !== 503; $('#recBody').hidden = false;
+    box.innerHTML = `<div class="msg err">${esc(err.message)}</div>`;
+    if (err.status === 503) $('#recKeyMsg').innerHTML = `<span class="canc">${esc(err.message)}</span>`;
+  }
+}
+function recSummary(){
+  if (!recCache) return;
+  const c = {attesa: 0, 'in corso': 0, completata: 0}; recCache.recs.forEach(r => c[r.status]++);
+  const parts = [c['in corso'] && c['in corso'] + ' in corso', c.completata && c.completata + ' completate: dati pronti', c.attesa && c.attesa + ' in attesa'].filter(Boolean);
+  $('#recSummary').textContent = parts.length ? parts.join(' · ') : 'Nessuna registrazione: tocca per avviarne una';
+}
+function renderRecList(recs, reader){
+  const box = $('#recList'), now = Date.now() / 1000;
+  if (!recs.length){ box.innerHTML = '<div class="msg">Nessuna registrazione. Avviane una qui sopra, oppure dal tabellone di una stazione (icona del grafico) o da un treno ("Registra i ritardi").</div>'; return; }
+  box.innerHTML = `<div class="sechead"><span>Le tue registrazioni</span></div>` + recs.map(r => {
+    const [tc, tl] = REC_STATUS[r.status] || ['grey', r.status];
+    const dirs = r.kind === 'station' ? ' · ' + (r.dirs === 'dep' ? 'partenze' : r.dirs === 'arr' ? 'arrivi' : 'partenze e arrivi') : '';
+    const stale = r.status === 'in corso' && (!r.last_run || now - r.last_run > 40 * 60);
+    const last = r.last_run ? 'ultima raccolta ' + whenTxt(new Date(r.last_run * 1000).toISOString()) : 'nessuna raccolta ancora';
+    return `<div class="card rec" data-rec="${r.id}">
+      <div class="rh"><span class="li-ic"><svg class="i"><use href="#ic-${r.kind === 'train' ? 'train' : 'board'}"/></svg></span><h3>${esc(r.label)}</h3><span class="tag ${tc}" style="margin:0">${tl}</span></div>
+      <div class="meta">Dal ${dmy(r.start)} al ${dmy(r.end)}${dirs}${r.created_by ? ' · creata da ' + esc(r.created_by) : ''}<br>${r.n} passaggi registrati, ${r.nfinal} con dato definitivo · ${esc(last)}</div>
+      ${stale ? '<div class="meta" style="color:var(--bad)">⚠️ La raccolta non gira da più di 40 minuti: controlla il lavoro pianificato su cron-job.org (istruzioni nel file LEGGIMI del server).</div>' : ''}
+      ${r.last_err ? `<div class="meta" style="color:var(--bad)">Ultimo errore: ${esc(r.last_err)}</div>` : ''}
+      <div class="acts">
+        <button type="button" class="pri" data-pdf="${r.id}" ${r.nfinal ? '' : 'disabled'}>Report PDF</button>
+        <button type="button" data-csv="${r.id}" ${r.n ? '' : 'disabled'}>Dati grezzi (CSV)</button>
+        ${reader ? '' : `<button type="button" class="del" data-rdel="${r.id}">Elimina</button>`}
+      </div>
+      ${r.status !== 'completata' && r.nfinal ? '<div class="meta">Il report si può scaricare anche ora, con i dati raccolti finora (parziale).</div>' : ''}
+      <div class="meta" data-recmsg role="status"></div></div>`;
+  }).join('');
+  box.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => recExport(+b.dataset.csv, 'csv', b));
+  box.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => recExport(+b.dataset.pdf, 'pdf', b));
+  box.querySelectorAll('[data-rdel]').forEach(b => b.onclick = () => armTwice(b, async () => {
+    try{ await bridgePost({a: 'rec_del', id: b.dataset.rdel}); loadRecList(); }
+    catch(err){ b.closest('.rec').querySelector('[data-recmsg]').textContent = err.message; }
+  }));
+}
+// Riepilogo nella scheda Treni (al massimo ogni 10 minuti)
+function recSummaryRefresh(){
+  if (!recKey() || (recCache && Date.now() - recCache.t < 600e3)) return;
+  bridgePost({a: 'rec_list'}).then(j => { recCache = {t: Date.now(), recs: j.recs}; recSummary(); }).catch(() => {});
+}
+
+/* ---------- Dati della registrazione: CSV, statistiche, PDF ---------- */
+async function recFetch(id){
+  const j = await bridgePost({a: 'rec_data', id}, 60000);
+  return {rec: j.rec, rows: j.rows.map(r => Object.fromEntries(j.cols.map((c, i) => [c, r[i]])))};
+}
+function download(name, blob){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+const recFile = (rec, ext) => `intervia_ritardi_${String(rec.label || rec.code).toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)}_${rec.start}_${rec.end}.${ext}`;
+const SRC_TXT = {reale: 'orario reale', tabellone: 'tabellone (ultimo letto)', stima: 'stima'};
+const hm = ms => ms ? fmtT(new Date(+ms).toISOString()) : '';
+function recCsv(rows){
+  const H = ['Data', 'Treno', 'Categoria', 'Origine', 'Destinazione', 'Stazione', 'Codice stazione', 'Tipo', 'Orario previsto', 'Orario reale', 'Ritardo (min)', 'Binario', 'Binario previsto', 'Soppresso', 'Fonte del ritardo', 'Definitivo'];
+  const q = v => { v = v == null ? '' : String(v); return /[;\x22\r\n]/.test(v) ? '"' + v.replace(/\x22/g, '""') + '"' : v; };
+  const lines = rows.map(r => [dmy(r.day), r.train, r.cat, titleCase(r.origin), titleCase(r.dest), titleCase(r.station), r.station_id, r.kind === 'arr' ? 'arrivo' : 'partenza',
+    hm(r.sched), hm(r.real), r.delay, r.track, r.track_sched, r.cancelled ? 'sì' : 'no', SRC_TXT[r.src] || r.src, r.final ? 'sì' : 'no']);
+  return '﻿' + [H, ...lines].map(l => l.map(q).join(';')).join('\r\n') + '\r\n';
+}
+// Statistiche sui passaggi definitivi. Anticipi contati come 0; puntuale = entro 5 minuti.
+function recStats(rows){
+  const fin = rows.filter(r => r.final), canc = fin.filter(r => r.cancelled);
+  const ok = fin.filter(r => !r.cancelled && r.delay != null);
+  const d = ok.map(r => Math.max(0, r.delay)).sort((a, b) => a - b), n = d.length;
+  const pct = p => n ? d[Math.min(n - 1, Math.ceil(p * n) - 1)] : null;          // percentile "nearest rank"
+  const maxRow = ok.reduce((m, r) => !m || r.delay > m.delay ? r : m, null);
+  return {total: fin.length, open: rows.length - fin.length, cancelled: canc.length, measured: n,
+    punctual: n ? d.filter(x => x <= 5).length / n : null, over15: d.filter(x => x > 15).length,
+    mean: n ? d.reduce((a, b) => a + b, 0) / n : null, median: n ? (n % 2 ? d[(n - 1) / 2] : (d[n / 2 - 1] + d[n / 2]) / 2) : null,
+    p90: pct(0.9), max: maxRow ? Math.max(0, maxRow.delay) : null, maxRow};
+}
+const DELAY_BINS = [['anticipo o in orario', -1e9, 0], ['1-5 min', 1, 5], ['6-10 min', 6, 10], ['11-15 min', 11, 15], ['16-30 min', 16, 30], ['31-60 min', 31, 60], ['oltre 60 min', 61, 1e9]];
+function delayHistogram(rows){
+  const ok = rows.filter(r => r.final && !r.cancelled && r.delay != null);
+  return DELAY_BINS.map(([lab, a, b]) => [lab, ok.filter(r => r.delay >= a && r.delay <= b).length]);
+}
+function groupBy(rows, key){ const m = new Map(); for (const r of rows){ const k = key(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); } return m; }
+// Treno: un viaggio per giorno → partenza dall'origine e arrivo a destinazione
+function tripsByDay(rows){
+  return [...groupBy(rows, r => r.day)].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([day, rs]) => {
+    const dep = rs.filter(r => r.kind === 'dep').sort((a, b) => a.sched - b.sched)[0] || null;
+    const arr = rs.filter(r => r.kind === 'arr').sort((a, b) => b.sched - a.sched)[0] || null;
+    return {day, dep, arr, cancelled: rs.length > 0 && rs.every(r => r.cancelled), final: !!(arr && arr.final)};
+  });
+}
+
+/* Grafici disegnati su canvas e messi nel PDF come immagini */
+function chartCanvas(w, h){ const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2; const g = c.getContext('2d'); g.scale(2, 2); return [c, g]; }
+const DELAY_COLOR = v => v == null ? '#CBD5E1' : v <= 5 ? '#16A34A' : v <= 15 ? '#F59E0B' : '#DC2626';
+function barChart({labels, values, colors, unit = '', w = 900, h = 340, max, notes}){
+  const [c, g] = chartCanvas(w, h), L = 56, R = 12, T = 16, B = 70;
+  const top = Math.max(max || 0, ...values.filter(v => v != null), 1), nice = top <= 10 ? Math.ceil(top) : Math.ceil(top / 5) * 5;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+  g.font = '13px sans-serif'; g.strokeStyle = '#E5E7EB'; g.fillStyle = '#6B7280'; g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++){ const v = nice * i / 4, y = T + (h - T - B) * (1 - i / 4); g.beginPath(); g.moveTo(L, y); g.lineTo(w - R, y); g.stroke(); g.fillText((Math.round(v * 10) / 10) + unit, L - 6, y); }
+  const n = values.length, bw = (w - L - R) / Math.max(n, 1);
+  values.forEach((v, i) => {
+    const x = L + i * bw + bw * 0.15, bh = v == null ? 0 : (h - T - B) * Math.max(0, v) / nice;
+    g.fillStyle = colors ? colors[i] : '#2563EB'; g.fillRect(x, h - B - bh, bw * 0.7, bh);
+    if (notes && notes[i]){ g.fillStyle = '#DC2626'; g.textAlign = 'center'; g.fillText(notes[i], x + bw * 0.35, h - B - 10); }
+  });
+  g.fillStyle = '#374151'; g.font = '12px sans-serif';
+  const every = Math.ceil(n / 31);
+  labels.forEach((lab, i) => { if (i % every) return; g.save(); g.translate(L + i * bw + bw / 2, h - B + 8); g.rotate(n > 8 ? -Math.PI / 4 : 0); g.textAlign = n > 8 ? 'right' : 'center'; g.textBaseline = 'top'; g.fillText(lab, 0, 0); g.restore(); });
+  return c.toDataURL('image/png');
+}
+function hbarChart({labels, values, unit = ' min', w = 900, rowH = 22}){
+  const h = 20 + labels.length * rowH, [c, g] = chartCanvas(w, h), L = 260, R = 60;
+  const top = Math.max(...values.filter(v => v != null), 1);
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.font = '13px sans-serif'; g.textBaseline = 'middle';
+  labels.forEach((lab, i) => {
+    const y = 10 + i * rowH + rowH / 2, v = values[i];
+    g.fillStyle = '#374151'; g.textAlign = 'right'; g.fillText(lab.length > 34 ? lab.slice(0, 33) + '…' : lab, L - 8, y);
+    const bw = v == null ? 0 : (w - L - R) * Math.max(0, v) / top;
+    g.fillStyle = DELAY_COLOR(v); g.fillRect(L, y - rowH * 0.32, bw, rowH * 0.64);
+    g.fillStyle = '#111827'; g.textAlign = 'left'; g.fillText(v == null ? 'n.d.' : (Math.round(v * 10) / 10) + unit, L + bw + 6, y);
+  });
+  return c.toDataURL('image/png');
+}
+function loadScript(src){
+  return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ko(new Error('Impossibile scaricare il generatore di PDF: controlla la connessione.')); document.head.appendChild(s); });
+}
+async function pdfLib(){
+  if (!window.jspdf) await loadScript('https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js');
+  if (!window.jspdf.jsPDF.API.autoTable) await loadScript('https://unpkg.com/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js');
+  return window.jspdf.jsPDF;
+}
+// I caratteri standard del PDF non hanno frecce e apici: si sostituiscono
+const pt = s => String(s ?? '').replace(/→/g, '-').replace(/′/g, "'").replace(/≈/g, '~').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[^\x20-\xFF]/g, '');
+const fmin = v => v == null ? 'n.d.' : (Math.round(v * 10) / 10).toString().replace('.', ',') + ' min';
+const fpct = v => v == null ? 'n.d.' : Math.round(v * 100) + '%';
+async function recPdf(rec, rows){
+  const JsPDF = await pdfLib();
+  const doc = new JsPDF({unit: 'mm', format: 'a4'}), W = 210, M = 14;
+  let y = 16;
+  const station = rec.kind === 'station';
+  // need = spazio (mm) per ciò che segue il titolo: se non ci sta, titolo e contenuto vanno insieme alla pagina dopo
+  const head = (t, size = 13, need = 30) => { if (y + 8 + need > 285) { doc.addPage(); y = 16; } doc.setFont('helvetica', 'bold'); doc.setFontSize(size); doc.text(pt(t), M, y); y += size * 0.45 + 2; doc.setFont('helvetica', 'normal'); };
+  const para = (t, size = 9.5) => { doc.setFontSize(size); const l = doc.splitTextToSize(pt(t), W - 2 * M); if (y + l.length * 4.2 > 285){ doc.addPage(); y = 16; } doc.text(l, M, y); y += l.length * 4.2 + 1.5; };
+  const img = (url, wpx, hpx) => { const w = W - 2 * M, h = w * hpx / wpx; if (y + h > 285){ doc.addPage(); y = 16; } doc.addImage(url, 'PNG', M, y, w, h); y += h + 4; };
+  const table = (headRow, body, opts = {}) => { doc.autoTable({startY: y, head: [headRow.map(pt)], body: body.map(r => r.map(pt)), margin: {left: M, right: M}, styles: {fontSize: 8.5, cellPadding: 1.4}, headStyles: {fillColor: [11, 37, 69]}, alternateRowStyles: {fillColor: [244, 246, 249]}, ...opts}); y = doc.lastAutoTable.finalY + 6; };
+  const status = rec.status === 'completata' ? 'periodo concluso' : 'dati parziali: registrazione ' + (rec.status === 'attesa' ? 'non ancora iniziata' : 'in corso');
+  doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.text('Report ritardi', M, y); y += 8;
+  doc.setFontSize(13); doc.text(pt(rec.label + (station ? ' - ' + (rec.dirs === 'dep' ? 'partenze' : rec.dirs === 'arr' ? 'arrivi' : 'partenze e arrivi') : '')), M, y); y += 6;
+  doc.setFont('helvetica', 'normal');
+  para(`Periodo: dal ${dmy(rec.start)} al ${dmy(rec.end)} (${status}). Creato il ${new Date().toLocaleString('it-IT', {timeZone: TZ})} con Intervia ${APP_VERSION}.`);
+  para('Fonte: ViaggiaTreno (servizio non ufficiale), letto dal server ogni 10-15 minuti. Ritardo = differenza fra orario reale e orario previsto; anticipi contati come 0. Puntuale = entro 5 minuti. Statistiche calcolate solo sui passaggi con dato definitivo.');
+  const fin = rows.filter(r => r.final);
+  if (station){
+    const dirs = [['Totale', fin]];
+    if (rec.dirs !== 'dep' && rec.dirs !== 'arr') dirs.push(['Partenze', fin.filter(r => r.kind === 'dep')], ['Arrivi', fin.filter(r => r.kind === 'arr')]);
+    const S = dirs.map(([, rs]) => recStats(rs));
+    head('Riepilogo');
+    const mx = s => s.maxRow ? `${fmin(s.max)} (treno ${s.maxRow.train}, ${dmy(s.maxRow.day)})` : 'n.d.';
+    table(['', ...dirs.map(d => d[0])], [
+      ['Passaggi con dato definitivo', ...S.map(s => s.total)], ['Soppressi', ...S.map(s => `${s.cancelled} (${s.total ? Math.round(s.cancelled / s.total * 100) : 0}%)`)],
+      ['Puntuali (entro 5 min)', ...S.map(s => fpct(s.punctual))], ['Ritardo medio', ...S.map(s => fmin(s.mean))], ['Ritardo mediano', ...S.map(s => fmin(s.median))],
+      ['9 treni su 10 entro', ...S.map(s => fmin(s.p90))], ['Oltre 15 minuti', ...S.map(s => s.over15)], ['Ritardo massimo', ...S.map(mx)]],
+      {columnStyles: {0: {fontStyle: 'bold', cellWidth: 55}}});
+    if (rows.length > fin.length) para(`${rows.length - fin.length} passaggi recenti non hanno ancora il dato definitivo e non sono conteggiati.`);
+    const days = [...groupBy(fin, r => r.day)].sort((a, b) => a[0] < b[0] ? -1 : 1);
+    if (days.length){
+      const ds = days.map(([d, rs]) => [d, recStats(rs)]);
+      head('Ritardo medio per giorno', 13, 71);
+      img(barChart({labels: ds.map(([d]) => dmy(d).slice(0, 5)), values: ds.map(([, s]) => s.mean), colors: ds.map(([, s]) => DELAY_COLOR(s.mean)), unit: "'", notes: ds.map(([, s]) => s.cancelled ? s.cancelled + 'S' : '')}), 900, 340);
+      para('Colore: verde entro 5 min, arancione 6-15, rosso oltre 15. "S" = numero di treni soppressi quel giorno.', 8);
+      head('Treni puntuali per giorno (%)', 13, 71);
+      img(barChart({labels: ds.map(([d]) => dmy(d).slice(0, 5)), values: ds.map(([, s]) => s.punctual == null ? null : s.punctual * 100), colors: ds.map(([, s]) => s.punctual == null ? '#CBD5E1' : s.punctual >= .9 ? '#16A34A' : s.punctual >= .75 ? '#F59E0B' : '#DC2626'), unit: '%', max: 100}), 900, 340);
+    }
+    head('Distribuzione dei ritardi', 13, 63);
+    const hist = delayHistogram(fin);
+    img(barChart({labels: hist.map(h => h[0]), values: hist.map(h => h[1]), colors: ['#16A34A', '#16A34A', '#F59E0B', '#F59E0B', '#DC2626', '#DC2626', '#991B1B'], h: 300}), 900, 300);
+    const hours = [...groupBy(fin.filter(r => !r.cancelled && r.delay != null), r => +hm(r.sched).slice(0, 2))].sort((a, b) => a[0] - b[0]);
+    if (hours.length > 1){
+      head('Ritardo medio per fascia oraria (orario previsto)', 13, 63);
+      const hs = hours.map(([hh, rs]) => [hh, recStats(rs).mean]);
+      img(barChart({labels: hs.map(([hh]) => String(hh).padStart(2, '0') + ':00'), values: hs.map(x => x[1]), colors: hs.map(x => DELAY_COLOR(x[1])), unit: "'", h: 300}), 900, 300);
+    }
+    if (days.length >= 14){
+      const WD = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
+      const wd = [...groupBy(fin, r => new Date(r.day + 'T12:00:00Z').getUTCDay())].sort((a, b) => ((a[0] + 6) % 7) - ((b[0] + 6) % 7));
+      head('Ritardo medio per giorno della settimana', 13, 59);
+      img(barChart({labels: wd.map(([d]) => WD[d]), values: wd.map(([, rs]) => recStats(rs).mean), colors: wd.map(([, rs]) => DELAY_COLOR(recStats(rs).mean)), unit: "'", h: 280}), 900, 280);
+    }
+    head('Per treno (dal più in ritardo)');
+    const per = [...groupBy(fin, r => r.train + '|' + r.kind)].map(([, rs]) => {
+      const s = recStats(rs), r0 = rs[rs.length - 1];
+      const times = [...groupBy(rs, r => hm(r.sched))].sort((a, b) => b[1].length - a[1].length);
+      return [r0.cat + ' ' + r0.train, r0.kind === 'arr' ? 'arr. da ' + titleCase(r0.origin || '') : 'part. per ' + titleCase(r0.dest || ''), times[0] ? times[0][0] : '', s.total, fpct(s.punctual), fmin(s.mean), fmin(s.max), s.cancelled, s.mean ?? -1];
+    }).sort((a, b) => b[8] - a[8]).map(r => r.slice(0, 8));
+    table(['Treno', 'Tipo', 'Ora', 'Pass.', 'Puntuali', 'Medio', 'Max', 'Soppr.'], per, {columnStyles: {1: {cellWidth: 52}}});
+    if (fin.length > 400){ head('Tutti i passaggi', 13, 12); para(`Sono ${fin.length}: l'elenco completo, con orari previsti e reali, binari e fonte del dato, è nel file "Dati grezzi (CSV)".`); }
+    else { head('Tutti i passaggi');
+    table(['Data', 'Ora prev.', 'Treno', 'Tipo', 'Da / per', 'Ritardo', 'Bin.', 'Note'], fin.map(r => [dmy(r.day), hm(r.sched), r.cat + ' ' + r.train, r.kind === 'arr' ? 'arrivo' : 'partenza',
+      titleCase(r.kind === 'arr' ? r.origin : r.dest), r.cancelled ? '-' : r.delay == null ? 'n.d.' : r.delay + ' min', r.track || '', r.cancelled ? 'SOPPRESSO' : r.src === 'tabellone' ? 'ultimo dato del tabellone' : '']),
+      {styles: {fontSize: 7.5, cellPadding: 1}, didParseCell: d => { if (d.section === 'body' && d.column.index === 5){ const v = parseInt(d.cell.raw); if (v > 15) d.cell.styles.textColor = [192, 38, 45]; else if (v > 5) d.cell.styles.textColor = [154, 82, 0]; } }}); }
+  } else {
+    const trips = tripsByDay(rows), done = trips.filter(t => t.final || t.cancelled);
+    const arrRows = done.map(t => t.arr).filter(Boolean), depRows = done.map(t => t.dep).filter(Boolean);
+    const SA = recStats(arrRows), SD = recStats(depRows);
+    head('Riepilogo');
+    const mx = s => s.maxRow ? `${fmin(s.max)} (${dmy(s.maxRow.day)})` : 'n.d.';
+    table(['', 'Arrivo a destinazione', "Partenza dall'origine"], [
+      ['Giorni con dato definitivo', SA.total, SD.total], ['Soppressioni', SA.cancelled, SD.cancelled], ['Puntuale (entro 5 min)', fpct(SA.punctual), fpct(SD.punctual)],
+      ['Ritardo medio', fmin(SA.mean), fmin(SD.mean)], ['Ritardo mediano', fmin(SA.median), fmin(SD.median)], ['9 giorni su 10 entro', fmin(SA.p90), fmin(SD.p90)],
+      ['Oltre 15 minuti', SA.over15, SD.over15], ['Ritardo massimo', mx(SA), mx(SD)]], {columnStyles: {0: {fontStyle: 'bold', cellWidth: 55}}});
+    para('Un giorno senza dati può voler dire che il treno quel giorno non circolava (festivi, orario ridotto) o che la raccolta non è avvenuta.');
+    if (done.length){
+      head('Ritardo all\'arrivo, giorno per giorno', 13, 71);
+      img(barChart({labels: done.map(t => dmy(t.day).slice(0, 5)), values: done.map(t => t.cancelled ? null : t.arr ? Math.max(0, t.arr.delay ?? 0) : null),
+        colors: done.map(t => DELAY_COLOR(t.arr && !t.cancelled ? t.arr.delay : null)), unit: "'", notes: done.map(t => t.cancelled ? 'S' : '')}), 900, 340);
+      para('"S" = treno soppresso.', 8);
+    }
+    const stops = [...groupBy(rows.filter(r => r.final && !r.cancelled && r.delay != null), r => r.station_id)];
+    const order = new Map(); rows.forEach(r => { if (!order.has(r.station_id) || r.sched % 86400000 < order.get(r.station_id)) order.set(r.station_id, ((r.sched - Date.parse(r.day + 'T00:00:00Z')) % 86400000 + 86400000) % 86400000); });
+    stops.sort((a, b) => order.get(a[0]) - order.get(b[0]));
+    if (stops.length){
+      head('Ritardo medio fermata per fermata (dove accumula ritardo)', 13, Math.round(182 * (20 + stops.length * 22) / 900) + 2);
+      const sv = stops.map(([, rs]) => { const a = rs.filter(r => r.kind === 'arr'); return [titleCase(rs[0].station), recStats(a.length ? a : rs).mean]; });
+      img(hbarChart({labels: sv.map(x => x[0]), values: sv.map(x => x[1])}), 900, 20 + sv.length * 22);
+      table(['Fermata', 'Arrivo: medio', 'Arrivo: puntuale', 'Partenza: medio', 'Partenza: puntuale'], stops.map(([, rs]) => {
+        const a = recStats(rs.filter(r => r.kind === 'arr')), p = recStats(rs.filter(r => r.kind === 'dep'));
+        return [titleCase(rs[0].station), a.measured ? fmin(a.mean) : '-', a.measured ? fpct(a.punctual) : '-', p.measured ? fmin(p.mean) : '-', p.measured ? fpct(p.punctual) : '-'];
+      }));
+    }
+    head('Distribuzione dei ritardi all\'arrivo', 13, 63);
+    const hist = delayHistogram(arrRows);
+    img(barChart({labels: hist.map(h => h[0]), values: hist.map(h => h[1]), colors: ['#16A34A', '#16A34A', '#F59E0B', '#F59E0B', '#DC2626', '#DC2626', '#991B1B'], h: 300}), 900, 300);
+    head('Giorno per giorno');
+    const cellT = r => r ? `${hm(r.sched)} > ${r.real ? hm(r.real) : 'n.d.'}` : '-';
+    table(['Data', 'Partenza prev. > reale', 'Rit. part.', 'Arrivo prev. > reale', 'Rit. arr.', 'Stato'], trips.map(t => [dmy(t.day), cellT(t.dep), t.dep && t.dep.delay != null ? t.dep.delay + ' min' : 'n.d.',
+      cellT(t.arr), t.arr && t.arr.delay != null ? t.arr.delay + ' min' : 'n.d.', t.cancelled ? 'SOPPRESSO' : !t.final ? 'in viaggio / non definitivo' : t.arr && t.arr.src !== 'reale' ? 'dato stimato' : '']));
+  }
+  const pages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pages; i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text(pt(`Intervia - ${rec.label} - pagina ${i} di ${pages}`), M, 292); doc.setTextColor(0); }
+  return doc;
+}
+async function recExport(id, kind, btn){
+  const msg = btn.closest('.rec').querySelector('[data-recmsg]'), lab = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparo…'; msg.textContent = '';
+  try{
+    const {rec, rows} = await recFetch(id);
+    if (kind === 'csv') download(recFile(rec, 'csv'), new Blob([recCsv(rows)], {type: 'text/csv;charset=utf-8'}));
+    else { const doc = await recPdf(rec, rows); download(recFile(rec, 'pdf'), doc.output('blob')); }
+    msg.textContent = `✅ File scaricato (${rows.length} righe). Lo trovi nei Download del telefono.`;
+  }catch(err){ msg.innerHTML = `<span class="canc">${esc(err.message)}</span>`; }
+  finally{ btn.disabled = false; btn.textContent = lab; }
 }
 
 /* ---------- Aspetto: sistema / chiaro / scuro ---------- */

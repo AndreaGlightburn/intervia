@@ -428,5 +428,84 @@ await test('treno: banner di stato e linea del tempo con fermate passate e pross
   assert.match(d.getElementById('trrecent').textContent, /24113/);
 });
 
+console.log('Rilascio 2.6.0');
+await test('tabellone: ritardo da ViaggiaTreno sul treno Trenord e treno mancante aggiunto', async () => {
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('/stoptimes')) return json(w, { stopTimes: [{ mode: 'REGIONAL_RAIL', routeShortName: 'R31', displayName: 'R31 10062', headsign: 'Mortara', agencyName: 'Trenord', tripId: 't1',
+      place: { departure: Z('15:53'), scheduledDeparture: Z('15:53') } }] });
+    if (u.includes('a=board')) return json(w, { ok: true, station: { id: 'S01067', name: 'ABBIATEGRASSO' }, trains: [
+      { n: '10062', delay: 8, sched: Date.parse(Z('15:53')), track: '2', trackSched: '1', cancelled: false },
+      { n: '10055', cat: 'REG', delay: null, sched: Date.now() + 600e3, dest: 'MILANO ROGOREDO', client: 'Trenord', cancelled: false, o: 'S00249', d: 1 }] });
+    return json(w, []);
+  });
+  w.eval(`openStation({id:'s1', name:'Abbiategrasso'})`);
+  assert.ok(await until(() => d.querySelectorAll('#stout .brow').length === 2), d.getElementById('stout').textContent);
+  const rowsB = [...d.querySelectorAll('#stout .brow')], first = rowsB.find(r => /10055/.test(r.textContent)), second = rowsB.find(r => /10062/.test(r.textContent));
+  assert.match(first.textContent, /Milano Rogoredo/); assert.match(first.textContent, /non ancora partito/); assert.equal(first.dataset.train, '10055');
+  assert.match(second.querySelector('.bdel').textContent, /\+8′/); assert.ok(second.querySelector('.bt.late'), 'orario in rosso');
+  assert.ok(second.querySelector('.bp.real'));
+  assert.match(d.querySelector('.boardsub').textContent, /ViaggiaTreno/);
+  assert.ok(d.getElementById('strec'), 'pulsante registra per le stazioni ferroviarie');
+});
+await test('treno: ritardo coerente con gli orari mostrati e fermata toccabile', async () => {
+  const t0 = Date.parse('2026-11-27T05:19:00Z');
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('api.php')) return json(w, { ok: true, train: { name: 'REG 10059', number: '10059', o: 'S00001', d: '1', origin: 'ALESSANDRIA', destination: 'MILANO ROGOREDO', delay: 1, stops: [
+      { name: 'ALESSANDRIA', id: 'S00001', type: 'P', depSched: t0, depReal: t0 + 20e3 },
+      { name: 'VALENZA', id: 'S00002', type: 'F', arrSched: t0 + 900e3, arrReal: t0 + 900e3 + 50e3, depSched: t0 + 960e3, depReal: t0 + 960e3 + 130e3 },
+      { name: 'MILANO ROGOREDO', id: 'S01820', type: 'A', arrSched: t0 + 7200e3 }] } });
+    if (u.includes('/geocode')) return json(w, [{ type: 'STOP', id: 'it-valenza', name: 'Valenza', lat: 45, lon: 8.6 }]);
+    if (u.includes('/stoptimes')) return json(w, { stopTimes: [] });
+    return json(w, []);
+  });
+  w.eval(`openTrain('10059')`);
+  assert.ok(await until(() => d.querySelector('#tout .tl')));
+  const li = d.querySelectorAll('#tout .tl li');
+  assert.ok(!/\+/.test(li[0].textContent), '20 secondi dopo: stesso minuto, nessun +1′');
+  assert.ok(!/\+/.test(li[1].querySelector('.tt').children[2].textContent), 'arrivo 50 s dopo: stesso minuto');
+  assert.match(li[1].textContent, /\+2′/); assert.ok(li[1].querySelector('b.late'));
+  assert.ok(d.getElementById('trrec'), 'pulsante registra i ritardi');
+  li[1].querySelector('.stlink').click();
+  assert.ok(await until(() => !d.getElementById('tab-station').hidden && w.eval('stSel && stSel.id') === 'it-valenza'));
+  assert.equal(w.eval('stSel.vt'), 'S00002', 'il codice ViaggiaTreno passa al tabellone');
+});
+await test('registrazioni: chiave richiesta, gestore vede il modulo, lettore no', async () => {
+  let role = 'gestore'; const posts = [];
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('a=rec_list')) { const k = new URLSearchParams(o.body).get('k'); posts.push(k);
+      return k === 'giusta-123456' ? json(w, { ok: true, me: { name: 'Andrea', role }, recs: [{ id: 1, kind: 'station', label: 'Abbiategrasso', start: '2026-11-27', end: '2026-12-26', dirs: 'dep,arr', n: 10, nfinal: 8, status: 'in corso', last_run: Date.now() / 1000, created_by: 'Andrea' }] })
+        : json(w, { ok: false, error: 'Chiave delle registrazioni errata' }, 403); }
+    return json(w, []);
+  });
+  d.getElementById('recOpen').click(); await sleep(20);
+  assert.ok(!d.getElementById('recKeyCard').hidden && d.getElementById('recBody').hidden, 'senza chiave si chiede la chiave');
+  d.getElementById('recKey').value = 'sbagliata'; d.getElementById('recKeySave').click();
+  assert.ok(await until(() => /errata/.test(d.getElementById('recKeyMsg').textContent)));
+  d.getElementById('recKey').value = 'giusta-123456'; d.getElementById('recKeySave').click();
+  assert.ok(await until(() => d.querySelector('#recList .rec')));
+  assert.ok(!d.getElementById('recForm').hidden); assert.ok(d.querySelector('[data-rdel]'));
+  assert.ok(!posts.some(k => k && w.location.href.includes(k)), 'la chiave non va negli indirizzi');
+  role = 'lettore'; d.getElementById('recReload').click();
+  assert.ok(await until(() => d.getElementById('recForm').hidden));
+  assert.ok(!d.querySelector('[data-rdel]'), 'il lettore non può eliminare'); assert.ok(d.querySelector('[data-pdf]'));
+  assert.match(d.getElementById('recWho').textContent, /sola lettura/);
+});
+await test('registrazioni: nuova registrazione di un treno aperto dalla scheda Treni', async () => {
+  let added = null;
+  const { w, d } = await boot((u, o, w) => {
+    if (u.includes('a=rec_add')) { added = Object.fromEntries(new URLSearchParams(o.body)); return json(w, { ok: true, id: 3 }); }
+    if (u.includes('a=rec_list')) return json(w, { ok: true, me: { name: 'Andrea', role: 'gestore' }, recs: [] });
+    return json(w, []);
+  });
+  w.localStorage.setItem('intervia.reckey', JSON.stringify('giusta-123456'));
+  w.eval(`openRec({kind:'train', code:'10062', origin:'S01820', label:'REG 10062 · Milano Rogoredo → Mortara'})`);
+  assert.ok(!d.getElementById('recTrBox').hidden);
+  d.querySelector('#recQuick [data-d="7"]').click();
+  d.getElementById('recForm').dispatchEvent(new w.Event('submit', { cancelable: true }));
+  assert.ok(await until(() => added));
+  assert.equal(added.kind, 'train'); assert.equal(added.code, '10062'); assert.equal(added.origin, 'S01820'); assert.equal(added.k, 'giusta-123456');
+  assert.equal((Date.parse(added.end) - Date.parse(added.start)) / 86400e3, 6, 'una settimana = 7 giorni');
+});
+
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);

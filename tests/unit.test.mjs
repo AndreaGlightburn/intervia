@@ -34,8 +34,9 @@ function grab(name) {
 
 const names = ['RAIL', 'modeGroup', 'apiModes', 'TICKETS', 'ticketLinks', 'TZ', 'romeDay', 'tzOffsetMin', 'romeISO',
   'COORD_RE', 'kmBetween', 'shiftLeg', 'applySnap', 'filterIt', 'walkMeters', 'transferMargins', 'nTransit', 'SORTS',
-  'parseLineQuery', 'decodePolyline', 'delayMin', 'ERR_MSG', 'NetError', 'fetchT', 'httpKind', 'OPTIONAL_PARAMS'];
-const ctx = { console, URLSearchParams, Intl, Date, Math, AbortController, DOMException, setTimeout, clearTimeout, last: null };
+  'parseLineQuery', 'decodePolyline', 'delayMin', 'ERR_MSG', 'NetError', 'fetchT', 'httpKind', 'OPTIONAL_PARAMS',
+  'fmtT', 'titleCase', 'dmy', 'hm', 'SRC_TXT', 'recCsv', 'recStats', 'DELAY_BINS', 'delayHistogram', 'groupBy', 'tripsByDay', 'mergeVt', 'pt'];
+const ctx = { console, URLSearchParams, Intl, Date, Math, AbortController, DOMException, setTimeout, clearTimeout, last: null, stArr: false };
 vm.createContext(ctx);
 for (const n of names) vm.runInContext(grab(n).replace(/^const /, 'var ').replace(/^class (\w+)/, 'var $1 = class $1'), ctx);
 
@@ -198,6 +199,51 @@ await test('M3: il service worker non salva version.json né richieste con param
     let p; handlers.fetch({ request: new Request(u), respondWith: x => p = x }); await p; await new Promise(r => setTimeout(r, 5));
   }
   assert.deepEqual(puts, ['https://x.io/intervia/index.html']);
+});
+
+console.log('Rilascio 2.6.0');
+const R = (o) => ({ day: '2026-11-27', train: '10062', cat: 'REG', origin: 'MILANO ROGOREDO', dest: 'MORTARA', station: 'ABBIATEGRASSO', station_id: 'S01067', kind: 'dep',
+  sched: Date.parse('2026-11-27T07:00:00Z'), real: null, delay: 0, track: '2', track_sched: '1', cancelled: 0, src: 'reale', final: 1, ...o });
+await test('statistiche: puntuali entro 5 min, anticipi come 0, soppressi esclusi dalla media, solo dati definitivi', () => {
+  const rows = [R({ delay: -2 }), R({ delay: 3 }), R({ delay: 6 }), R({ delay: 20 }), R({ delay: null, cancelled: 1 }), R({ delay: 99, final: 0 })];
+  const s = ctx.recStats(rows);
+  assert.equal(s.total, 5); assert.equal(s.open, 1); assert.equal(s.cancelled, 1); assert.equal(s.measured, 4);
+  assert.equal(s.punctual, 0.5); assert.equal(s.mean, (0 + 3 + 6 + 20) / 4); assert.equal(s.median, 4.5); assert.equal(s.max, 20); assert.equal(s.over15, 1);
+  assert.equal(s.p90, 20);
+  assert.equal(JSON.stringify(ctx.delayHistogram(rows).map(h => h[1])), '[1,1,1,0,1,0,0]');
+  const empty = ctx.recStats([]); assert.equal(empty.mean, null); assert.equal(empty.punctual, null);
+});
+await test('treno: un viaggio al giorno, partenza dalla prima fermata e arrivo all\'ultima', () => {
+  const t = h => Date.parse(`2026-11-27T${h}:00Z`);
+  const trips = ctx.tripsByDay([R({ kind: 'dep', sched: t('06:00'), delay: 1, station: 'A' }), R({ kind: 'arr', sched: t('06:30'), delay: 4, station: 'B' }), R({ kind: 'dep', sched: t('06:31'), delay: 4, station: 'B' }), R({ kind: 'arr', sched: t('07:00'), delay: 9, station: 'C' }),
+    R({ day: '2026-11-28', kind: 'dep', sched: t('06:00'), cancelled: 1, delay: null }), R({ day: '2026-11-28', kind: 'arr', sched: t('07:00'), cancelled: 1, delay: null })]);
+  assert.equal(trips.length, 2);
+  assert.equal(trips[0].dep.station, 'A'); assert.equal(trips[0].arr.station, 'C'); assert.equal(trips[0].arr.delay, 9);
+  assert.equal(trips[1].cancelled, true);
+});
+await test('CSV: separatore ";", BOM per Excel, campi con ";" tra virgolette, orari italiani', () => {
+  const csv = ctx.recCsv([R({ real: Date.parse('2026-11-27T07:06:00Z'), delay: 6, dest: 'MORTARA; VIA VIGEVANO' })]);
+  assert.ok(csv.startsWith('﻿Data;Treno;'));
+  const line = csv.split('\r\n')[1];
+  assert.match(line, /^27\/11\/2026;10062;REG;Milano Rogoredo;"Mortara; Via Vigevano";Abbiategrasso;S01067;partenza;08:00;08:06;6;2;1;no;orario reale;sì$/);
+});
+await test('tabellone: ritardi ViaggiaTreno uniti per numero, treni mancanti aggiunti, "non ancora partito" onesto', () => {
+  const base = Date.parse('2026-11-27T11:00:00Z');
+  const rows = [{ g: 'treno', line: 'R31', num: '10062', head: 'Mortara', sched: base, exp: base, delay: null, track: null },
+                { g: 'bus', line: '50', num: null, head: 'X', sched: base + 60e3, exp: base + 60e3, delay: null }];
+  const vt = [{ n: '10062', delay: 7, sched: base, track: '3', trackSched: '2', cancelled: false },
+              { n: '10055', cat: 'REG', delay: null, sched: base + 1800e3, dest: 'MILANO ROGOREDO', client: 'Trenord', cancelled: false, o: 'S00249', d: 1 },
+              { n: '9999', delay: 0, sched: base - 3 * 3600e3, cancelled: false }];
+  const m = ctx.mergeVt(rows, vt, base);
+  assert.equal(m.length, 3, 'il treno di 3 ore prima non si aggiunge');
+  assert.equal(m[0].delay, 7); assert.equal(m[0].exp, base + 7 * 60e3); assert.equal(m[0].track, '3'); assert.equal(m[0].trackSched, '2');
+  const added = m.find(r => r.num === '10055');
+  assert.ok(added.vtOnly); assert.equal(added.head, 'Milano Rogoredo'); assert.equal(added.notStarted, true); assert.equal(added.delay, null);
+  assert.equal(ctx.mergeVt(rows, null), rows);
+});
+await test('testi del PDF: niente caratteri che i font standard non sanno scrivere', () => {
+  assert.equal(ctx.pt('Milano → Mortara +3′ ≈ 5 – fine…'), "Milano - Mortara +3' ~ 5 - fine...");
+  assert.equal(ctx.pt('Città perché'), 'Città perché');
 });
 
 console.log(`\n${passed} passati, ${failed} falliti`);

@@ -8,10 +8,17 @@
  *   api.php?a=train&n=9660&o=S01700&d=1763247600000   andamento del treno scelto
  *   api.php?a=info                               infomobilità RFI (tempo reale + avvisi)
  *   api.php?a=strikes                            scioperi (Ministero dei Trasporti)
+ *   api.php?a=board&name=Abbiategrasso&kind=dep  tabellone ViaggiaTreno di una stazione (ritardi, binari)
+ *   api.php?a=stsearch&q=abbiat                  stazioni ViaggiaTreno (codice S01xxx)
  *   api.php?a=ping                               verifica funzionamento
+ *
+ *   Registrazione dei ritardi (richiedono la chiave in config.php, inviata in POST come k=…):
+ *   POST a=rec_list | rec_add | rec_del | rec_data          gestione e dati dall'app
+ *   api.php?a=collect&k=CHIAVE                    raccolta, da chiamare ogni 10–15 minuti (cron-job.org)
  */
 
-@ini_set('display_errors', '0');   // nessun percorso di file o dettaglio interno nelle risposte
+@ini_set('display_errors', '0');
+date_default_timezone_set('Europe/Rome');   // nessun percorso di file o dettaglio interno nelle risposte
 
 // Siti autorizzati a usare il ponte (aggiungi qui altri domini se serve)
 $ALLOWED = ['https://andreaglightburn.github.io', 'https://iz2oii.eu', 'https://www.iz2oii.eu', 'http://localhost'];
@@ -150,13 +157,13 @@ function vt($path, $ttl) {
 }
 
 $a = $_GET['a'] ?? '';
-if (!in_array($a, ['ping', 'diag', 'train', 'info', 'strikes', 'lines', 'line', 'citylines'], true)) fail('Azione non valida', 400);
+if (!in_array($a, ['ping', 'diag', 'train', 'info', 'strikes', 'lines', 'line', 'citylines', 'board', 'stsearch', 'rec_list', 'rec_add', 'rec_del', 'rec_data', 'collect'], true)) fail('Azione non valida', 400);
 rate_limit('all', 90);
 if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heavy', $a === 'citylines' || $a === 'diag' ? 12 : 40);
 housekeeping();
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.0.4']);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.1.0', 'sqlite' => class_exists('PDO') && in_array('sqlite', PDO::getAvailableDrivers(), true), 'rec' => is_file(__DIR__ . '/config.php')]);
 if ($a === 'diag') {   // verifica in PARALLELO se il server raggiunge le fonti (risposta entro ~10 s)
     @set_time_limit(30);
     $q = rawurlencode('[out:json][timeout:5];node(1);out;');
@@ -427,6 +434,274 @@ if ($a === 'citylines') {
     $j = overpass_q('[out:json][timeout:120];' . $sel . 'relation["type"="route"]["route"~"^(bus|trolleybus|tram|subway|light_rail|train|monorail|ferry|coach|share_taxi)$"](area.a);out tags;');
     if ($j === false) fail('OpenStreetMap non risponde (' . $LAST_ERR . ')');
     out(['ok' => true, 'elements' => $j['elements'], 'date' => $OSM_DATE]);
+}
+
+/* ---------- Stazioni ViaggiaTreno: ricerca e tabellone ---------- */
+function vt_norm($s) {
+    $s = strtoupper(trim((string)$s));
+    $s = strtr($s, ['À'=>'A','È'=>'E','É'=>'E','Ì'=>'I','Ò'=>'O','Ù'=>'U','à'=>'A','è'=>'E','é'=>'E','ì'=>'I','ò'=>'O','ù'=>'U']);
+    $s = str_replace(['P.TA', 'P.GARIBALDI', "'", '-', '.'], ['PORTA', 'PORTA GARIBALDI', ' ', ' ', ' '], $s);
+    $s = preg_replace('/\b(STAZIONE|FS|FNM|TRENORD|CENTRALE FS)\b/', ' ', $s);
+    return trim(preg_replace('/\s+/', ' ', $s));
+}
+function vt_stations($q) {
+    $q = trim(preg_replace('/[^\p{L}\p{N} \'\-.]/u', '', (string)$q));
+    if (mb_strlen($q) < 2) return [];
+    $j = json_decode((string)vt('cercaStazione/' . rawurlencode(strtoupper($q)), 30 * 86400), true);
+    $out = [];
+    foreach (is_array($j) ? $j : [] as $x) if (!empty($x['id'])) $out[] = ['id' => $x['id'], 'name' => $x['nomeLungo'] ?? $x['label'] ?? $x['id']];
+    return $out;
+}
+// Dal nome della fermata (es. "Milano Cadorna") al codice ViaggiaTreno; null se non è una stazione ferroviaria nota
+function vt_station_by_name($name) {
+    $n = vt_norm($name);
+    if ($n === '') return null;
+    $words = explode(' ', $n);
+    for ($k = count($words); $k >= 1; $k--) {                // "Milano Porta Genova FS" → prova anche con meno parole
+        $list = vt_stations(implode(' ', array_slice($words, 0, $k)));
+        if (!$list) continue;
+        foreach ($list as $x) if (vt_norm($x['name']) === $n) return $x;
+        if ($k === count($words) && count($list) === 1) return $list[0];
+        foreach ($list as $x) {                              // "Milano Lambrate M2" → MILANO LAMBRATE; "Abbiategrasso Piazza Marconi" (bus) → nessuna
+            $v = vt_norm($x['name']);
+            if (strlen($v) >= 6 && strpos($n, $v) === 0 && preg_match('/^( (M\d|S\d{1,2}|FS|FN|FNM|RFI|\d{1,2}))*$/', substr($n, strlen($v)))) return $x;
+        }
+        return null;
+    }
+    return null;
+}
+function vt_date($t) { return rawurlencode(date('D M d Y H:i:s', $t) . ' GMT' . date('O', $t)); }
+const VT_CLIENT = [1 => 'Trenitalia', 2 => 'Trenitalia', 4 => 'Trenitalia', 18 => 'Tper', 63 => 'Trenord', 64 => 'Trenitalia Tper', 910 => 'Ferrovie del Sud Est'];
+// Righe del tabellone: ritardo null = ancora sconosciuto (treno non partito dall'origine)
+function vt_board($stId, $kind, $t, $ttl = 50) {
+    $j = json_decode((string)vt(($kind === 'arr' ? 'arrivi/' : 'partenze/') . $stId . '/' . vt_date($t), $ttl), true);
+    if (!is_array($j)) return null;
+    $rows = [];
+    foreach ($j as $x) {
+        $arr = $kind === 'arr';
+        $sched = $arr ? ($x['orarioArrivo'] ?? null) : ($x['orarioPartenza'] ?? null);
+        $known = empty($x['nonPartito']);
+        $rows[] = [
+            'n' => (string)($x['numeroTreno'] ?? ''), 'cat' => trim($x['categoriaDescrizione'] ?? $x['categoria'] ?? ''),
+            'sched' => $sched, 'delay' => $known ? (int)($x['ritardo'] ?? 0) : null, 'started' => $known,
+            'inStation' => !empty($arr ? ($x['inStazione'] ?? false) : ($x['inStazione'] ?? false)),
+            'track' => $arr ? ($x['binarioEffettivoArrivoDescrizione'] ?? null) : ($x['binarioEffettivoPartenzaDescrizione'] ?? null),
+            'trackSched' => $arr ? ($x['binarioProgrammatoArrivoDescrizione'] ?? null) : ($x['binarioProgrammatoPartenzaDescrizione'] ?? null),
+            'cancelled' => isset($x['provvedimento']) && $x['provvedimento'] == 1,
+            'origin' => $x['origine'] ?? null, 'dest' => $x['destinazione'] ?? null,
+            'o' => $x['codOrigine'] ?? null, 'd' => $x['dataPartenzaTreno'] ?? null,
+            'client' => VT_CLIENT[$x['codiceCliente'] ?? 0] ?? null,
+        ];
+    }
+    return $rows;
+}
+if ($a === 'stsearch') out(['ok' => true, 'stations' => array_slice(vt_stations($_GET['q'] ?? ''), 0, 15)]);
+if ($a === 'board') {
+    $kind = ($_GET['kind'] ?? '') === 'arr' ? 'arr' : 'dep';
+    $id = preg_replace('/[^A-Z0-9]/', '', strtoupper($_GET['st'] ?? ''));
+    $st = $id ? ['id' => $id, 'name' => $_GET['name'] ?? $id] : vt_station_by_name($_GET['name'] ?? '');
+    if (!$st) out(['ok' => true, 'station' => null, 'trains' => []]);          // fermata non ferroviaria: niente da aggiungere
+    $t = (int)($_GET['t'] ?? 0); $t = $t > 0 ? intdiv($t, 1000) : time();
+    $rows = vt_board($st['id'], $kind, $t);
+    if ($rows === null) fail('ViaggiaTreno non risponde (' . $LAST_ERR . ')');
+    out(['ok' => true, 'station' => $st, 'trains' => $rows]);
+}
+
+/* ---------- Registrazione dei ritardi (SQLite) ---------- */
+// config.php: 'gestori' (creano ed eliminano), 'lettori' (solo report e dati), 'cron' (solo la raccolta automatica).
+// Ogni persona ha la sua chiave: per togliere l'accesso a qualcuno basta cancellare la sua riga.
+function rec_cfg() {
+    $f = __DIR__ . '/config.php';
+    $c = is_file($f) ? (include $f) : null;
+    $users = [];
+    if (is_array($c)) {
+        if (!empty($c['key'])) $users[] = ['name' => 'gestore', 'key' => $c['key'], 'role' => 'gestore'];      // formato semplice: una sola chiave
+        foreach (['gestori' => 'gestore', 'lettori' => 'lettore'] as $grp => $role)
+            foreach ((array)($c[$grp] ?? []) as $name => $key) $users[] = ['name' => (string)$name, 'key' => (string)$key, 'role' => $role];
+        if (!empty($c['cron'])) $users[] = ['name' => 'cron', 'key' => (string)$c['cron'], 'role' => 'cron'];
+    }
+    $users = array_values(array_filter($users, fn($u) => strlen($u['key']) >= 12));
+    if (!$users) fail('Registrazioni non attive: manca config.php con almeno una chiave di 12 o più caratteri (vedi LEGGIMI).', 503);
+    return $users;
+}
+function rec_auth($a) {
+    $k = (string)($_POST['k'] ?? $_GET['k'] ?? '');
+    $me = null;
+    foreach (rec_cfg() as $u) if ($k !== '' && hash_equals($u['key'], $k)) { $me = $u; break; }
+    if (!$me) { usleep(300000); fail('Chiave delle registrazioni errata', 403); }
+    $allowed = ['collect' => ['cron', 'gestore'], 'rec_add' => ['gestore'], 'rec_del' => ['gestore'], 'rec_list' => ['gestore', 'lettore'], 'rec_data' => ['gestore', 'lettore']];
+    if (!in_array($me['role'], $allowed[$a], true))
+        fail($me['role'] === 'lettore' ? 'La tua chiave è di sola lettura: puoi scaricare report e dati, non creare o eliminare registrazioni.' : 'Questa chiave serve solo alla raccolta automatica.', 403);
+    return $me;
+}
+function rec_db() {
+    if (!class_exists('PDO') || !in_array('sqlite', PDO::getAvailableDrivers(), true)) fail('Il server non ha SQLite (PDO): chiedi ad Aruba o usa un altro hosting', 503);
+    $db = new PDO('sqlite:' . data_dir('rec') . '/ritardi.sqlite');
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $db->exec('PRAGMA busy_timeout = 10000');
+    $db->exec('CREATE TABLE IF NOT EXISTS recs (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, code TEXT NOT NULL, origin TEXT, label TEXT, start TEXT NOT NULL, end TEXT NOT NULL,
+        dirs TEXT, created INTEGER, last_run INTEGER, last_err TEXT)');
+    $db->exec('CREATE TABLE IF NOT EXISTS obs (rec_id INTEGER NOT NULL, day TEXT NOT NULL, train TEXT NOT NULL, cat TEXT, origin TEXT, dest TEXT, station TEXT, station_id TEXT NOT NULL,
+        kind TEXT NOT NULL, sched INTEGER, real INTEGER, delay INTEGER, track TEXT, track_sched TEXT, cancelled INTEGER DEFAULT 0, src TEXT, final INTEGER DEFAULT 0,
+        o TEXT, d INTEGER, seen INTEGER, PRIMARY KEY (rec_id, day, train, station_id, kind))');
+    return $db;
+}
+function rec_status($r, $today) { return $today < $r['start'] ? 'attesa' : ($today > $r['end'] ? 'completata' : 'in corso'); }
+function day_of($ms) { return date('Y-m-d', intdiv((int)$ms, 1000)); }
+
+// Salva/aggiorna un'osservazione senza mai cancellare un dato definitivo
+function obs_put($db, $r) {
+    static $st = null;
+    if (!$st) $st = $db->prepare('INSERT INTO obs (rec_id, day, train, cat, origin, dest, station, station_id, kind, sched, real, delay, track, track_sched, cancelled, src, final, o, d, seen)
+        VALUES (:rec_id, :day, :train, :cat, :origin, :dest, :station, :station_id, :kind, :sched, :real, :delay, :track, :track_sched, :cancelled, :src, :final, :o, :d, :seen)
+        ON CONFLICT (rec_id, day, train, station_id, kind) DO UPDATE SET
+          cat = COALESCE(excluded.cat, cat), origin = COALESCE(excluded.origin, origin), dest = COALESCE(excluded.dest, dest),
+          real = CASE WHEN final = 1 AND excluded.final = 0 THEN real ELSE COALESCE(excluded.real, real) END,
+          delay = CASE WHEN final = 1 AND excluded.final = 0 THEN delay ELSE COALESCE(excluded.delay, delay) END,
+          src = CASE WHEN final = 1 AND excluded.final = 0 THEN src ELSE excluded.src END,
+          track = COALESCE(excluded.track, track), track_sched = COALESCE(excluded.track_sched, track_sched),
+          cancelled = MAX(cancelled, excluded.cancelled), final = MAX(final, excluded.final),
+          o = COALESCE(excluded.o, o), d = COALESCE(excluded.d, d), seen = excluded.seen');
+    $st->execute($r + ['real' => null, 'track' => null, 'track_sched' => null, 'o' => null, 'd' => null, 'origin' => null, 'dest' => null, 'cat' => null]);
+}
+function vt_train($o, $n, $d, $ttl = 90) {
+    $j = json_decode((string)vt("andamentoTreno/$o/$n/$d", $ttl), true);
+    return is_array($j) && !empty($j['fermate']) ? $j : null;
+}
+// Fermate di un andamento → osservazioni (arrivo e partenza separati)
+function train_rows($recId, $t, $n, $o, $d, $only = null) {
+    $rows = []; $now = time() * 1000;
+    $fer = $t['fermate']; $lastIdx = count($fer) - 1;
+    $ended = !empty($fer[$lastIdx]['arrivoReale']);
+    foreach ($fer as $i => $f) {
+        if ($only && ($f['id'] ?? '') !== $only) continue;
+        $canc = ($f['actualFermataType'] ?? 0) == 3 || (isset($t['provvedimento']) && $t['provvedimento'] == 1);
+        foreach (['arr' => ['arrivo_teorico', 'arrivoReale', 'ritardoArrivo', 'binarioEffettivoArrivoDescrizione', 'binarioProgrammatoArrivoDescrizione'],
+                  'dep' => ['partenza_teorica', 'partenzaReale', 'ritardoPartenza', 'binarioEffettivoPartenzaDescrizione', 'binarioProgrammatoPartenzaDescrizione']] as $kind => $k) {
+            if (($kind === 'arr' && $i === 0) || ($kind === 'dep' && $i === $lastIdx) || empty($f[$k[0]])) continue;
+            $real = $f[$k[1]] ?? null;
+            $late = $f[$k[0]] + 6 * 3600e3 < $now;            // dopo 6 ore senza orario reale si chiude con quel che c'è
+            $rows[] = ['rec_id' => $recId, 'day' => day_of($d), 'train' => (string)$n, 'cat' => trim($t['categoria'] ?? ''), 'origin' => $t['origine'] ?? null, 'dest' => $t['destinazione'] ?? null,
+                'station' => $f['stazione'] ?? '', 'station_id' => $f['id'] ?? '', 'kind' => $kind, 'sched' => $f[$k[0]], 'real' => $real,
+                'delay' => $real ? (int)round(($real - $f[$k[0]]) / 60000) : (isset($f[$k[2]]) && !empty($t['oraUltimoRilevamento']) ? (int)$f[$k[2]] : null),
+                'track' => $f[$k[3]] ?? null, 'track_sched' => $f[$k[4]] ?? null, 'cancelled' => $canc ? 1 : 0,
+                'src' => $real ? 'reale' : 'stima', 'final' => ($real || $canc || $ended || $late) ? 1 : 0, 'o' => $o, 'd' => $d, 'seen' => time()];
+        }
+    }
+    return $rows;
+}
+function collect_rec($db, $r, $deadline) {
+    $now = time();
+    if ($r['kind'] === 'train') {
+        $o = $r['origin']; $n = $r['code'];
+        foreach ([strtotime('today'), strtotime('yesterday')] as $day) {     // anche il treno partito ieri sera ancora in viaggio
+            $ds = date('Y-m-d', $day);
+            if ($ds < $r['start'] || $ds > $r['end']) continue;
+            $t = vt_train($o, $n, $day * 1000, 60);
+            if ($t) foreach (train_rows($r['id'], $t, $n, $o, $day * 1000) as $row) obs_put($db, $row);
+        }
+        return;
+    }
+    // stazione: tabellone (dato provvisorio) …
+    foreach (explode(',', $r['dirs'] ?: 'dep,arr') as $kind) {
+        $rows = vt_board($r['code'], $kind, $now, 0);
+        if ($rows === null) throw new Exception('tabellone non disponibile');
+        foreach ($rows as $x) {
+            if (!$x['sched'] || !$x['n']) continue;
+            $ds = day_of($x['sched']);
+            if ($ds < $r['start'] || $ds > $r['end']) continue;
+            obs_put($db, ['rec_id' => $r['id'], 'day' => $ds, 'train' => $x['n'], 'cat' => $x['cat'], 'origin' => $x['origin'], 'dest' => $x['dest'], 'station' => $r['label'],
+                'station_id' => $r['code'], 'kind' => $kind, 'sched' => $x['sched'], 'delay' => $x['delay'], 'track' => $x['track'], 'track_sched' => $x['trackSched'],
+                'cancelled' => $x['cancelled'] ? 1 : 0, 'src' => 'tabellone', 'final' => 0, 'o' => $x['o'], 'd' => $x['d'], 'seen' => $now]);
+        }
+    }
+    // … poi, per i treni già passati, l'orario reale dall'andamento del treno (dato definitivo)
+    $q = $db->prepare('SELECT * FROM obs WHERE rec_id = ? AND final = 0 AND sched + COALESCE(delay, 0) * 60000 < ? ORDER BY sched LIMIT 60');
+    $q->execute([$r['id'], ($now - 600) * 1000]);
+    foreach ($q->fetchAll() as $x) {
+        if (time() > $deadline) break;
+        $t = ($x['o'] && $x['d']) ? vt_train($x['o'], $x['train'], $x['d'], 120) : null;
+        $done = false;
+        if ($t) foreach (train_rows($r['id'], $t, $x['train'], $x['o'], $x['d'], $r['code']) as $row) {
+            if ($row['kind'] !== $x['kind']) continue;
+            $row['station'] = $r['label'];
+            obs_put($db, $row); $done = $row['final'] == 1;
+        }
+        if (!$done && $x['sched'] < ($now - 6 * 3600) * 1000)            // nessun orario reale dopo 6 ore: resta il dato del tabellone
+            $db->prepare('UPDATE obs SET final = 1 WHERE rec_id = ? AND day = ? AND train = ? AND station_id = ? AND kind = ?')
+               ->execute([$r['id'], $x['day'], $x['train'], $x['station_id'], $x['kind']]);
+    }
+}
+
+if (in_array($a, ['rec_list', 'rec_add', 'rec_del', 'rec_data', 'collect'], true)) {
+    $me = rec_auth($a);
+    $db = rec_db();
+    try { $db->exec('ALTER TABLE recs ADD COLUMN created_by TEXT'); } catch (Throwable $e) {}   // colonna aggiunta in 2.1
+    $today = date('Y-m-d');
+    if ($a === 'collect') {
+        ignore_user_abort(true); @set_time_limit(60);
+        $deadline = time() + 25;                         // cron-job.org attende al massimo 30 s
+        $lock = @fopen(data_dir('rec') . '/collect.lock', 'c');
+        if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) out(['ok' => true, 'note' => 'raccolta già in corso']);
+        $done = [];
+        $recs = $db->query("SELECT * FROM recs WHERE start <= date('now', 'localtime') AND end >= date('now', 'localtime', '-1 day') ORDER BY COALESCE(last_run, 0)")->fetchAll();
+        foreach ($recs as $r) {
+            if (time() > $deadline) break;
+            $err = null;
+            try { $db->beginTransaction(); collect_rec($db, $r, $deadline); $db->commit(); }
+            catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); $err = substr($e->getMessage() . ($LAST_ERR ? ' (' . $LAST_ERR . ')' : ''), 0, 200); }
+            $db->prepare('UPDATE recs SET last_run = ?, last_err = ? WHERE id = ?')->execute([time(), $err, $r['id']]);
+            $done[] = ['id' => (int)$r['id'], 'error' => $err];
+        }
+        out(['ok' => true, 'done' => $done, 'time' => date('c')]);
+    }
+    if ($a === 'rec_list') {
+        $rows = $db->query('SELECT r.*, (SELECT COUNT(*) FROM obs o WHERE o.rec_id = r.id) AS n, (SELECT COUNT(*) FROM obs o WHERE o.rec_id = r.id AND o.final = 1) AS nfinal,
+            (SELECT MAX(seen) FROM obs o WHERE o.rec_id = r.id) AS last_seen FROM recs r ORDER BY r.id DESC')->fetchAll();
+        foreach ($rows as &$r) $r['status'] = rec_status($r, $today);
+        out(['ok' => true, 'recs' => $rows, 'today' => $today, 'me' => ['name' => $me['name'], 'role' => $me['role']]]);
+    }
+    if ($a === 'rec_add') {
+        $kind = ($_POST['kind'] ?? '') === 'train' ? 'train' : 'station';
+        $code = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $_POST['code'] ?? ''));
+        $origin = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $_POST['origin'] ?? ''));
+        $start = $_POST['start'] ?? ''; $end = $_POST['end'] ?? '';
+        $label = mb_substr(trim(strip_tags($_POST['label'] ?? '')), 0, 80);
+        $dirs = implode(',', array_intersect(explode(',', $_POST['dirs'] ?? 'dep,arr'), ['dep', 'arr'])) ?: 'dep,arr';
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) || $end < $start) fail('Periodo non valido', 400);
+        if ((strtotime($end) - strtotime($start)) / 86400 > 366) fail('Periodo troppo lungo (massimo un anno)', 400);
+        if ($kind === 'station' && !preg_match('/^S\d{5}$/', $code)) fail('Stazione non valida: sceglila dall\'elenco', 400);
+        if ($kind === 'train') {
+            if (!preg_match('/^\d{1,6}$/', $code)) fail('Numero treno non valido', 400);
+            if ($origin === '') {                          // stazione d'origine: serve per leggere l'andamento ogni giorno
+                $txt = vt('cercaNumeroTrenoTrenoAutocomplete/' . $code, 300);
+                $m = [];
+                foreach (preg_split('/\r?\n/', trim((string)$txt)) as $line) if (strpos($line, '|') !== false) { $p = explode('-', trim(explode('|', $line, 2)[1])); if (count($p) >= 2) $m[$p[1]] = 1; }
+                if (count($m) !== 1) fail(count($m) ? 'Più treni con questo numero: aprilo dalla scheda Treni e registra da lì' : 'Treno non trovato in ViaggiaTreno (prova nel giorno in cui circola)', 400);
+                $origin = array_key_first($m);
+            }
+        }
+        if ((int)$db->query('SELECT COUNT(*) FROM recs')->fetchColumn() >= 30) fail('Troppe registrazioni (massimo 30): eliminane qualcuna', 400);
+        $db->prepare('INSERT INTO recs (kind, code, origin, label, start, end, dirs, created, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$kind, $code, $origin ?: null, $label ?: $code, $start, $end, $kind === 'station' ? $dirs : null, time(), $me['name']]);
+        out(['ok' => true, 'id' => (int)$db->lastInsertId()]);
+    }
+    $id = (int)($_POST['id'] ?? 0);
+    $r = $db->prepare('SELECT * FROM recs WHERE id = ?'); $r->execute([$id]); $r = $r->fetch();
+    if (!$r) fail('Registrazione non trovata', 404);
+    if ($a === 'rec_del') {
+        $db->prepare('DELETE FROM obs WHERE rec_id = ?')->execute([$id]);
+        $db->prepare('DELETE FROM recs WHERE id = ?')->execute([$id]);
+        out(['ok' => true]);
+    }
+    if ($a === 'rec_data') {
+        $q = $db->prepare('SELECT day, train, cat, origin, dest, station, station_id, kind, sched, real, delay, track, track_sched, cancelled, src, final FROM obs WHERE rec_id = ? ORDER BY sched');
+        $q->execute([$id]);
+        $r['status'] = rec_status($r, $today);
+        out(['ok' => true, 'rec' => $r, 'rows' => $q->fetchAll(PDO::FETCH_NUM),
+             'cols' => ['day', 'train', 'cat', 'origin', 'dest', 'station', 'station_id', 'kind', 'sched', 'real', 'delay', 'track', 'track_sched', 'cancelled', 'src', 'final']]);
+    }
 }
 
 fail('Azione non valida', 400);
