@@ -163,7 +163,7 @@ if (in_array($a, ['lines', 'line', 'citylines', 'diag'], true)) rate_limit('heav
 housekeeping();
 
 /* ---------- Verifica ---------- */
-if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.1.0', 'sqlite' => class_exists('PDO') && in_array('sqlite', PDO::getAvailableDrivers(), true), 'rec' => is_file(__DIR__ . '/config.php')]);
+if ($a === 'ping') out(['ok' => true, 'php' => PHP_VERSION, 'curl' => function_exists('curl_init'), 'version' => '2.1.1', 'sqlite' => class_exists('PDO') && in_array('sqlite', PDO::getAvailableDrivers(), true), 'rec' => is_file(__DIR__ . '/config.php')]);
 if ($a === 'diag') {   // verifica in PARALLELO se il server raggiunge le fonti (risposta entro ~10 s)
     @set_time_limit(30);
     $q = rawurlencode('[out:json][timeout:5];node(1);out;');
@@ -480,7 +480,8 @@ function vt_board($stId, $kind, $t, $ttl = 50) {
     foreach ($j as $x) {
         $arr = $kind === 'arr';
         $sched = $arr ? ($x['orarioArrivo'] ?? null) : ($x['orarioPartenza'] ?? null);
-        $known = empty($x['nonPartito']);
+        // "nonPartito" = non ancora partito da QUESTA stazione; il ritardo è noto se ViaggiaTreno lo dà (null = treno non ancora partito dall'origine)
+        $known = isset($x['ritardo']) && $x['ritardo'] !== null && (!empty($x['circolante']) || !empty($x['ultimoRilev']));
         $rows[] = [
             'n' => (string)($x['numeroTreno'] ?? ''), 'cat' => trim($x['categoriaDescrizione'] ?? $x['categoria'] ?? ''),
             'sched' => $sched, 'delay' => $known ? (int)($x['ritardo'] ?? 0) : null, 'started' => $known,

@@ -2,7 +2,7 @@
 
 ## 0. RIPARTENZA — leggere per primo
 
-**Stato pubblicato (27/11/2026):** `main` = **v2.6.0**, online su https://andreaglightburn.github.io/intervia/ · server `server/api.php` **v2.1.0** nel repo: **da caricare a mano su Aruba** insieme a `config.php` (da `config.example.php`, mai nel repo) e da attivare la raccolta su cron-job.org (istruzioni in `server/LEGGIMI.md`). Finché il server non è aggiornato l'app funziona come prima (tabellone senza ritardi ViaggiaTreno, registrazioni con messaggio d'errore).
+**Stato pubblicato (27/11/2026):** `main` = **v2.6.0**, online su https://andreaglightburn.github.io/intervia/ · server `server/api.php` **v2.1.1** nel repo: **da caricare a mano su Aruba** insieme a `config.php` (da `config.example.php`, mai nel repo) e da attivare la raccolta su cron-job.org (istruzioni in `server/LEGGIMI.md`). Finché il server non è aggiornato l'app funziona come prima (tabellone senza ritardi ViaggiaTreno, registrazioni con messaggio d'errore).
 
 **Regole del progetto:** l'app resta un file unico `index.html` (PWA, nessun passaggio di build). Il server PHP sta in `server/` e si carica a mano su Aruba. Niente dati inventati, etichette oneste. A ogni rilascio si alzano insieme `APP_VERSION` (index.html), `VERSION` (sw.js) e `version.json`. Test: `cd tests && npm i && node unit.test.mjs && node smoke.test.mjs`. Push: `git -c push.negotiate=true push origin HEAD:main`. Autore nell'app: "Pony10". Il nome "Intervia" resta provvisorio ("sul nome torneremo").
 

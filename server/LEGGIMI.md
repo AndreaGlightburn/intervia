@@ -5,7 +5,7 @@ Serve alle schede **Stazioni** (ritardi e binari dei treni), **Treni** (andament
 ## Installazione su Aruba
 1. Con il File Manager di Aruba (o FTP) crea la cartella `intervia` nella radice del sito `www.iz2oii.eu`.
 2. Carica dentro il file `api.php` (sostituisci quello vecchio).
-3. Apri https://www.iz2oii.eu/intervia/api.php?a=ping — deve comparire `{"ok":true,"version":"2.1.0","sqlite":true,...}`.
+3. Apri https://www.iz2oii.eu/intervia/api.php?a=ping — deve comparire `{"ok":true,"version":"2.1.1","sqlite":true,...}`.
    Se `sqlite` è `false`, il piano Aruba non ha SQLite: le registrazioni dei ritardi non possono funzionare (il resto sì).
 
 Indirizzo diverso? Cambialo nell'app: **Informazioni → Server dati**.
