@@ -251,6 +251,7 @@ ol.stl li .act button{font-size:13px;border:1px solid var(--line);background:var
 .rec .acts button{min-height:44px;border-radius:12px;border:1px solid var(--line2);background:var(--card);padding:0 14px;font-weight:600;cursor:pointer;color:var(--ink)}
 .rec .acts button.pri{background:var(--pri);border-color:var(--pri);color:#fff}
 .rec .acts button.del{color:var(--bad);margin-left:auto}
+.rec .acts button:disabled{opacity:.45;cursor:default}
 .rec .kpi{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:15px}
 .rec .kpi b{font-size:17px}
 .ilist{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
@@ -540,7 +541,7 @@ details.idet[open] .ich{transform:rotate(90deg)}
 
 <script>
 'use strict';
-const APP_VERSION = '2.6.0', APP_DATE = '2026-11-27', APP_AUTHOR = 'Pony10';
+const APP_VERSION = '2.6.1', APP_DATE = '2026-11-27', APP_AUTHOR = 'Pony10';
 const API = 'https://api.transitous.org';
 const PLAN_VERSIONS = ['v5', 'v4', 'v3'];
 let planVer = null;           // versione funzionante, scoperta al primo uso
@@ -2799,12 +2800,15 @@ function renderRecList(recs, reader){
   box.innerHTML = `<div class="sechead"><span>Le tue registrazioni</span></div>` + recs.map(r => {
     const [tc, tl] = REC_STATUS[r.status] || ['grey', r.status];
     const dirs = r.kind === 'station' ? ' · ' + (r.dirs === 'dep' ? 'partenze' : r.dirs === 'arr' ? 'arrivi' : 'partenze e arrivi') : '';
-    const stale = r.status === 'in corso' && (!r.last_run || now - r.last_run > 40 * 60);
+    // avviso solo se la raccolta tace da 40 minuti (contando dalla creazione per le registrazioni nuove)
+    const stale = r.status === 'in corso' && now - Math.max(r.last_run || 0, r.created || 0) > 40 * 60;
+    const fresh = r.status === 'in corso' && !r.last_run && !stale;
     const last = r.last_run ? 'ultima raccolta ' + whenTxt(new Date(r.last_run * 1000).toISOString()) : 'nessuna raccolta ancora';
     return `<div class="card rec" data-rec="${r.id}">
       <div class="rh"><span class="li-ic"><svg class="i"><use href="#ic-${r.kind === 'train' ? 'train' : 'board'}"/></svg></span><h3>${esc(r.label)}</h3><span class="tag ${tc}" style="margin:0">${tl}</span></div>
       <div class="meta">Dal ${dmy(r.start)} al ${dmy(r.end)}${dirs}${r.created_by ? ' · creata da ' + esc(r.created_by) : ''}<br>${r.n} passaggi registrati, ${r.nfinal} con dato definitivo · ${esc(last)}</div>
       ${stale ? '<div class="meta" style="color:var(--bad)">⚠️ La raccolta non gira da più di 40 minuti: controlla il lavoro pianificato su cron-job.org (istruzioni nel file LEGGIMI del server).</div>' : ''}
+      ${fresh ? '<div class="meta">I dati arrivano alla prima raccolta del server (ogni 10 minuti con cron-job.org).</div>' : ''}
       ${r.last_err ? `<div class="meta" style="color:var(--bad)">Ultimo errore: ${esc(r.last_err)}</div>` : ''}
       <div class="acts">
         <button type="button" class="pri" data-pdf="${r.id}" ${r.nfinal ? '' : 'disabled'}>Report PDF</button>

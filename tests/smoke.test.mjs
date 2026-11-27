@@ -507,5 +507,18 @@ await test('registrazioni: nuova registrazione di un treno aperto dalla scheda T
   assert.equal((Date.parse(added.end) - Date.parse(added.start)) / 86400e3, 6, 'una settimana = 7 giorni');
 });
 
+await test('registrazione appena creata: nessun avviso di raccolta ferma; avviso dopo 40 minuti', async () => {
+  const now = Date.now() / 1000;
+  const { w, d } = await boot((u, o, w) => u.includes('a=rec_list') ? json(w, { ok: true, me: { name: 'Andrea', role: 'gestore' }, recs: [
+    { id: 1, kind: 'train', label: 'Treno 2030', start: '2026-11-27', end: '2026-12-26', n: 0, nfinal: 0, status: 'in corso', last_run: null, created: now - 60 },
+    { id: 2, kind: 'train', label: 'Treno 2031', start: '2026-11-27', end: '2026-12-26', n: 0, nfinal: 0, status: 'in corso', last_run: null, created: now - 3600 }] }) : json(w, []));
+  w.localStorage.setItem('intervia.reckey', JSON.stringify('giusta-123456'));
+  w.eval('openRec()');
+  assert.ok(await until(() => d.querySelectorAll('#recList .rec').length === 2));
+  const [a, b] = d.querySelectorAll('#recList .rec');
+  assert.ok(!/non gira/.test(a.textContent)); assert.match(a.textContent, /prima raccolta/);
+  assert.match(b.textContent, /non gira da più di 40 minuti/);
+  assert.ok(a.querySelector('[data-pdf]').disabled, 'senza dati il PDF non si può chiedere');
+});
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);
