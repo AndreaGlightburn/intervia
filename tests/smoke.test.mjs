@@ -308,9 +308,9 @@ await test('A2: l\'aggiornamento automatico del tabellone non svuota la pagina',
     return json(w, []);
   });
   w.eval(`openStation({id:'s1', name:'Duomo'})`);
-  assert.ok(await until(() => /Duomo/.test(d.getElementById('stout').textContent) && d.querySelector('#stout .leg')));
+  assert.ok(await until(() => /Duomo/.test(d.getElementById('stout').textContent) && d.querySelector('#stout .brow')));
   slow = true; w.eval('loadBoard(true)'); await sleep(50);
-  assert.ok(d.querySelector('#stout .leg'), 'la tabella resta visibile durante l\'aggiornamento');
+  assert.ok(d.querySelector('#stout .brow'), 'la tabella resta visibile durante l\'aggiornamento');
   assert.ok(!/Carico il tabellone/.test(d.getElementById('stout').textContent));
 });
 await test('A3: "La mia posizione" salvata nelle recenti senza coordinate e riletta al riuso', async () => {
@@ -322,7 +322,7 @@ await test('A3: "La mia posizione" salvata nelle recenti senza coordinate e rile
   submit(w, d); await sleep(50);
   const rec = JSON.parse(w.localStorage.getItem('intervia.recent'))[0];
   assert.equal(rec.from.gps, true); assert.equal(rec.from.place, undefined, 'nessuna coordinata salvata');
-  lat = 45.9; d.querySelector('#recent button').click(); await sleep(30);
+  lat = 45.9; d.querySelector('#recent .li-main').click(); await sleep(30);
   assert.match(w.eval('sel.from.place'), /^45\.9/, 'posizione riletta, non quella vecchia');
 });
 await test('A4: dopo la ricerca la pagina scorre ai risultati', async () => {
@@ -335,19 +335,97 @@ await test('M1: cancellazione dei dati con conferma e interfaccia aggiornata', a
   const { w, d } = await boot((u, o, w) => json(w, []));
   w.localStorage.setItem('intervia.recent', JSON.stringify([{ from: { label: 'A', place: 'a' }, to: { label: 'B', place: 'b' } }]));
   w.eval('renderRecent()');
-  assert.equal(d.querySelectorAll('#recent button').length, 1);
+  assert.equal(d.querySelectorAll('#recent .li-main').length, 1);
   d.getElementById('infoClear').click();
   assert.ok(w.localStorage.getItem('intervia.recent'), 'primo tocco: nulla cancellato');
   assert.match(d.getElementById('infoClearMsg').textContent, /1 ricerche recenti/);
   d.getElementById('infoClear').click();
   assert.equal(w.localStorage.getItem('intervia.recent'), null);
-  assert.equal(d.querySelectorAll('#recent button').length, 0, 'le recenti spariscono subito');
+  assert.equal(d.querySelectorAll('#recent .li-main').length, 0, 'le recenti spariscono subito');
+  assert.ok(d.getElementById('recenthead').hidden, 'intestazione nascosta senza recenti');
 });
 await test('M7: numero treno non valido → messaggio chiaro', async () => {
   const { w, d } = await boot((u, o, w) => json(w, []));
   d.getElementById('trainq').value = 'abc';
   d.getElementById('tf').dispatchEvent(new w.Event('submit', { cancelable: true }));
   assert.match(d.getElementById('tout').textContent, /Scrivi solo il numero del treno/);
+});
+
+console.log('Rilascio 2.5.0');
+await test('pageTitle e aria-current seguono la scheda scelta', async () => {
+  const { w, d } = await boot((u, o, w) => json(w, []));
+  d.querySelector('#tabs [data-t="train"]').click();
+  assert.equal(d.getElementById('pageTitle').textContent, 'Treni');
+  assert.equal(d.querySelector('#tabs [aria-current="page"]').dataset.t, 'train');
+  assert.equal(d.querySelectorAll('#tabs [aria-current]').length, 1);
+  assert.ok(d.getElementById('tab-route').hidden && !d.getElementById('tab-train').hidden);
+});
+await test('Solo diretti: nessun cambio, scelta salvata, i cambi tornano quando si spegne', async () => {
+  const asked = [];
+  const { w, d } = await boot((u, o, w) => { if (u.includes('/plan?')) asked.push(new URL(u).searchParams.get('maxTransfers')); return json(w, { itineraries: [] }); });
+  d.getElementById('maxT').value = '2';
+  const od = d.getElementById('onlyDirect'); od.checked = true; od.dispatchEvent(new w.Event('change'));
+  assert.ok(d.getElementById('maxTrow').hidden);
+  setPlaces(w); submit(w, d); assert.ok(await until(() => asked.length === 1)); assert.equal(asked[0], '0');
+  const pr = JSON.parse(w.localStorage.getItem('intervia.prefs'));
+  assert.equal(pr.onlyDirect, true); assert.equal(pr.maxT, '2', 'la scelta dei cambi non si perde');
+  od.checked = false; od.dispatchEvent(new w.Event('change'));
+  assert.ok(!d.getElementById('maxTrow').hidden);
+  submit(w, d); assert.ok(await until(() => asked.length === 2)); assert.equal(asked[1], '2');
+});
+await test('tema: Scuro/Chiaro/Sistema salvato e applicato anche prima del disegno', async () => {
+  const { w, d } = await boot((u, o, w) => json(w, []));
+  d.querySelector('#themeSeg [data-th="dark"]').click();
+  assert.equal(d.documentElement.dataset.theme, 'dark');
+  assert.equal(JSON.parse(w.localStorage.getItem('intervia.theme')), 'dark');
+  assert.ok(d.querySelector('#themeSeg [data-th="dark"]').classList.contains('on'));
+  d.querySelector('#themeSeg [data-th=""]').click();
+  assert.equal(d.documentElement.dataset.theme, undefined);
+  assert.match(html.slice(0, html.indexOf('<style>')), /intervia\.theme/, 'script del tema in testa, prima degli stili');
+});
+await test('recenti: cestino su una voce e "Cancella" con doppio tocco', async () => {
+  const { w, d } = await boot((u, o, w) => json(w, []));
+  w.localStorage.setItem('intervia.recent', JSON.stringify([1, 2, 3].map(n => ({ from: { label: 'A' + n, place: 'a' + n }, to: { label: 'B' + n, place: 'b' + n } }))));
+  w.eval('renderRecent()');
+  assert.ok(!d.getElementById('recenthead').hidden);
+  d.querySelector('#recent [data-del="1"]').click();
+  assert.deepEqual(JSON.parse(w.localStorage.getItem('intervia.recent')).map(x => x.from.label), ['A1', 'A3']);
+  d.getElementById('recentClear').click();
+  assert.equal(JSON.parse(w.localStorage.getItem('intervia.recent')).length, 2, 'primo tocco: solo conferma');
+  d.getElementById('recentClear').click();
+  assert.equal(JSON.parse(w.localStorage.getItem('intervia.recent')).length, 0);
+  assert.ok(d.getElementById('recenthead').hidden);
+});
+await test('tabellone: ritardo, orario previsto, binario cambiato, soppressione', async () => {
+  const { w, d } = await boot((u, o, w) => u.includes('/stoptimes') ? json(w, { stopTimes: [
+    { mode: 'REGIONAL_RAIL', routeShortName: 'S9', headsign: 'Saronno', agencyName: 'Trenord', tripId: 't1', realTime: true,
+      place: { departure: Z('09:07'), scheduledDeparture: Z('09:00'), track: '3', scheduledTrack: '2' } },
+    { mode: 'BUS', routeShortName: '91', headsign: 'Lotto', tripId: 't2', realTime: true, cancelled: true, place: { departure: Z('09:10'), scheduledDeparture: Z('09:10') } },
+    { mode: 'BUS', routeShortName: '50', headsign: 'Lorenteggio', place: { departure: Z('09:20'), scheduledDeparture: Z('09:20') } }] }) : json(w, []));
+  w.eval(`openStation({id:'s1', name:'Milano Cadorna'})`);
+  assert.ok(await until(() => d.querySelectorAll('#stout .brow').length === 3));
+  const [r1, r2, r3] = d.querySelectorAll('#stout .brow');
+  assert.match(r1.querySelector('.bdel').textContent, /\+7′/); assert.match(r1.querySelector('.bx').textContent, /previsto 10:00/);
+  assert.ok(r1.querySelector('.bp.real'), 'binario cambiato evidenziato'); assert.equal(r1.dataset.trip, 't1');
+  assert.ok(r2.classList.contains('cx')); assert.match(r2.textContent, /Soppresso/);
+  assert.match(r3.querySelector('.bdel').textContent, /programmato/, 'senza tempo reale non si dice "in orario"');
+  assert.equal(d.querySelector('#stout h2').textContent, 'Milano Cadorna');
+  assert.match(d.getElementById('strecent').textContent, /Milano Cadorna/);
+});
+await test('treno: banner di stato e linea del tempo con fermate passate e prossima', async () => {
+  const t0 = Date.now() - 3600e3;
+  const { w, d } = await boot((u, o, w) => u.includes('api.php') ? json(w, { ok: true, train: { name: 'REG 24113', number: '24113', o: 'S01', d: '1', origin: 'Milano', destination: 'Novara', delay: 6, lastStation: 'Abbiategrasso', lastTime: t0 + 1800e3,
+    stops: [{ name: 'Milano', type: 'P', depSched: t0, depReal: t0 + 60e3, delayDep: 1, track: '5' },
+            { name: 'Abbiategrasso', type: 'F', arrSched: t0 + 1700e3, arrReal: t0 + 1800e3, delayArr: 6, depSched: t0 + 1760e3, track: '2', trackSched: '1' },
+            { name: 'Novara', type: 'A', arrSched: t0 + 4000e3 }] } }) : json(w, []));
+  w.eval(`openTrain('24113')`);
+  assert.ok(await until(() => d.querySelector('#tout .tl')));
+  assert.match(d.querySelector('#tout .banner').textContent, /In viaggio · ritardo 6 min/);
+  const li = d.querySelectorAll('#tout .tl li');
+  assert.equal(li.length, 3); assert.ok(li[0].classList.contains('past') && li[1].classList.contains('past') && li[2].classList.contains('next'));
+  assert.ok(li[1].querySelector('.tk.chg'), 'binario cambiato');
+  assert.ok(!/Arr\./.test(li[0].textContent) && !/Part\./.test(li[2].textContent), 'capolinea: solo partenza / solo arrivo');
+  assert.match(d.getElementById('trrecent').textContent, /24113/);
 });
 
 console.log(`\n${passed} passati, ${failed} falliti`);

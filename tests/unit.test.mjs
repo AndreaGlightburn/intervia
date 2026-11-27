@@ -6,7 +6,8 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const js = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+// lo script principale è il più lungo (in testa c'è quello breve che applica il tema)
+const js = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).sort((a, b) => b.length - a.length)[0];
 
 // estrae una dichiarazione (function, class o const) bilanciando parentesi e ignorando le stringhe
 function grab(name) {
@@ -174,11 +175,14 @@ await test('A5: contrasto ≥ 4,5:1 nel tema chiaro e scuro', () => {
   const lum = h => { const c = h.match(/\w\w/g).map(x => parseInt(x, 16) / 255).map(v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
   const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
   const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
-  const dark = css.match(/prefers-color-scheme:dark\)\{:root\{([^}]*)\}/)[1];
+  const dark = css.match(/:root\[data-theme=dark\]\{([^}]*)\}/)[1];
+  const auto = css.match(/prefers-color-scheme:dark\)\{:root:not\(\[data-theme=light\]\)\{([^}]*)\}/)[1];
+  assert.equal(auto, dark, 'scuro automatico e scuro forzato hanno gli stessi colori');
   const v = (block, k) => block.match(new RegExp('--' + k + ':(#[0-9a-fA-F]{6})'))[1];
   const light = css.match(/:root\{([^}]*)\}/)[1];
   assert.ok(ratio('#ffffff', v(dark, 'pri')) >= 4.5, 'pulsanti scuri');
   assert.ok(ratio(v(dark, 'link'), v(dark, 'card')) >= 4.5 && ratio(v(dark, 'link'), v(dark, 'pri2')) >= 4.5, 'link scuri');
+  assert.ok(ratio(v(light, 'link'), v(light, 'pri2')) >= 4.5 && ratio(v(light, 'mute'), v(light, 'bg')) >= 4.5 && ratio(v(dark, 'mute'), v(dark, 'card')) >= 4.5, 'testi secondari');
   assert.ok(ratio(v(light, 'link'), '#e8f0f9') >= 4.5 && ratio(v(light, 'link'), '#ffffff') >= 4.5, 'link chiari');
   assert.ok(/a\{color:var\(--link\)\}/.test(css), 'i link usano --link');
   assert.ok(/name="color-scheme"/.test(html));
